@@ -1,0 +1,115 @@
+[00:00:01.539] Server  LOG     ✓ Ready in 1344ms
+[00:00:06.765] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         trancy-version="7.8.7"
+                        >
+                  ...
+
+[00:00:06.765] Browser ERROR   LiveKit connection error: {}
+[00:18:40.839] Server  LOG     ✓ Compiled in 28ms
+[00:18:41.878] Browser ERROR   LiveKit connection error: {}
+[00:18:58.729] Server  LOG     ✓ Compiled in 23ms
+[00:19:10.462] Server  LOG     ✓ Compiled in 26ms
+[00:21:26.869] Server  LOG     ✓ Compiled in 1ms
+[00:21:32.000] Browser ERROR   LiveKit connection error: {}
+[00:21:32.001] Browser ERROR   LiveKit connection error: {}
+[00:21:46.080] Server  LOG     ✓ Compiled in 22ms
+[00:21:56.083] Server  LOG     ✓ Compiled in 16ms
+[00:22:17.426] Browser ERROR   LiveKit connection error: {}
+[00:22:17.426] Browser ERROR   LiveKit connection error: {}
+[00:25:23.491] Browser ERROR   A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+%s%s https://react.dev/link/hydration-mismatch 
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="en"
+-                         trancy-version="7.8.7"
+                        >
+                  ...
+
+[00:25:24.698] Browser INFO    connection state changed: disconnected -> connecting {"participant":"","participantID":"","room":""}
+[00:25:24.698] Browser INFO    signal connecting to wss://fe-dog-breeds-pv499o1m.livekit.cloud/rtc/v1?access_token=%3Credacted%3E&join_request=CAESkA8fiwgAAAAAAAAT7VzLbtzIFYUCJBgIUIB4Ncu7H1Bdtx58lNELWY-ZwYwNYWQ721BkdYtw8xGyWt3y_8zf5QeyC4qU3FSzSmPFDjDI1E596tY9dU_dS3YfAz786zcHL_5Cjyk5Jt_-7R8HL_70zQH9968Hh3-uFwvVvvjXrwe3c3J0WM8DYBFLSEKiKI5iyhhFikDhxzfw4yUHpNExOSbHeHTYzYOjQz0nQI4O07na6jJtgnS1qjdBWWxVbtCyK_KgU2Va6SKTAH9_fWXgZVuvG_nq3Zuzn8-BgMnPgIOA8OiwnKfrvKghgXdnl7O3P1_Nfnl7Obs6eX95AYgIIYMECMSADBAJIA2PDrP5_flIf7r-RK1uyrSRZk_drLsZjwkhMzpaChm0KrcsJPB9ROnM4COUwOXp63f7aGzQk30UGZy-mYBIQKuVam7qSgXqVlV6IB_H0HAS8xCyKPVQT1lUjS5KNUfyct2porpOq3yhsjl-CguNOjhDxCF5ZqqyiZQ1weK6z6rbtOqautVBlu2uVCKs20oWSi9kk7Zp2clWN8FN3qqtll3XZkF_YcFK3arVaB-FG60bOZttNpvjjbpudXZct8uZ2jaqLUpV6W62yzRLr7ugU1UemMJGadg4jTlFn6TIZ3mbLnRwU69K1QZtmaU62FWwKXIVZFmgtlpVXVFXXUBwlJU_WVSuOlkWfQd3Sq8bmWa6Sbuub-kil4N0Krutq9Wd-bvIVLBetOlSbr5__d0D0mxyKZY_vf7nD8k1-e78hMYfy1icFNFPqq9wUVRL1TZtUWnZ3aQBFSGETJ7HMmIypPJcSHYmL07kKTPIxak8DSW9kLwHTxJ5ciajWJ6dSEoNnryS7Fyen8uIy_hCXkQyFDJM5NmFfHUq6am8iB-OVjfaiCJ1W2QfVupTK5Tr7ae_2674qPxA-oH8_Q8k-oH0A-kH8vczkPSPNZC3Ra7sA5mEkESQxJAkgIQAEgQmgIXAImAxIGGAhAOSCJCYzwkgckAUgBgCYgSIMbAEOAGOwClwBpwDF8BD4BHwGBATQGpGHQEpBZ6AICAQBAWkDJCar-4CBHvySZCE8P4yniXk8cQlEbR6O4VjeH-ZTOHEGm2Kt4UbQWzxTFjDWWiPjuzRseMsDH6gIbcscMeGyLXBxZA4NqCDAYVrg71i0xiODfYjMceJOLGGc3SEU3u4Q1FuL5cLOHmPU9heK4_s0Q7t0aU9tZdqpsaxwVFsTyAmuLDnF-gIt2c3A2veulPc0TpUwHrVLFQ2ZWCwWKntQmUBYbvV_v2XRJA2ep6EOySGpq0XxUoFRT4fRSZDZLx7xRIyDqWjBexjcUTExDh29wJmYR_KxA6JxpFsh8dDZDTiYdC_ToO0uytLpdu7wXtQ-RxfNmn2QeniY2oe4UFZ58qA95mHbUU-55QQXIxS8vujsxEWPY-GfAZNfE8zrib5CtWoRzT4UE0ywsRXqGaPZrhERDHCnimarZr8sWh4LxruRGPP1MxWzGMWToY22ynG8YsrWfDHHLTn4Lsx4M_sZEsd-xzD1fNdH_OHiy_y7Vw8JJiTl7pQ7WjS-XCbfHeZPLLuxMnO4YL4qKnxy5s6fFyYeYAPbTBqavrMO7LoN6EZLgnp6JaSTzrMMd7lMB97LYLFKl0aRbcDzdUvV28_7RbDufnu2AKd-ehn5BsOKHB05vt5p7tbF-Y90qRFG2yKKq835qlMdm-I3_jBk4SwrOtl0Kryeg_f_x00WsqyEhZFu4dWafbBAkGzKh7BsYMydlPGVsp4ShlbKc2bzMppFlykZs3CauB92gdsn5cJOy0TTlYmbKRMTDjvoQll5KCM3JSRlTKaUkYOdZlLXfaEusyuLrOoyxy8jlrNgpvXWq2Bp7yuehMXb_IEb2LnTSy8iZ0XHe1kFpy8aG0oA0940d5S5lXv4H1CZ7TrjBad0a4zc8jM3Cozq8hsqjGzS8zRTsmnttBoyULJcUJ5D00oHcPD3bPDraPDp5PD7YPDHX3E3W3ErV3Ep03E7T3EHS3E3R3ErQ3Ep_3DHWOKrjHFJ8YU7WOKljFFx5hSRxOZBScvtbaRgSe81NFIjnK5u1puLZZPa-X2UoWjUuEuVFjrFNMyhb1K4RgXMR2XB-P2SZNT14tFp_TRVzdskfW0bNk0sncOg7otVKX7L6lH_2tjVzyviGaV3tVrHeRqld6N0oTPSzPUmdWVVpUO9F0zFiT6b3Lpoiyq5ShL_LwsWb2q26Br0mx8lM-2vR_ukvzmBvO5061Ky-Dx1qf_3aDf2n99V3kwyWF13fuv_t519677zhv0rrt33Xewd9296-5dd--6e9fdu-7edfeuu3fdvevuXfd92Lvu3nX3rrt33b3rboG86-5dd--6j1133re9d9296-5dd--6e9fdu-7edfeuu3fdvevuXXfvunvX3bvu3nX3rrt33b3r7l1377p719277t51_3LXvf_Z9sdx3dOmWRVZPzX33vuZMd-vTt9ewnD_QZ7qNLtJq8r8J0M259uqY_j_ol2X6SYwTwUp7n_2lek2KFXXpUsVGB0lDSlyfnT47cF_AHh3ntURUwAA {}
+[00:25:24.698] Browser INFO    connection state changed: disconnected -> connecting {"participant":"","participantID":"","room":""}
+[00:25:24.698] Browser INFO    signal connecting to wss://fe-dog-breeds-pv499o1m.livekit.cloud/rtc/v1?access_token=%3Credacted%3E&join_request=CAESlg8fiwgAAAAAAAAT7VzbbuTGEYUCJDAEKED2yY_1A9R09YWXXszD6rJZI_ZCtnZlIE-hyB6J2OElZI9m5P_x3-UH8hY0ZyRSw255FW8AI-43zenqOl2nq4acs8Ae_vmrg1d_oseUHJOv__KPg1d_-OqA_vvng8M_1ouFal_96-eDuzk5OqznAXCBBHlEQ8QIYwyRcKDwzXv45oID0uiYHJNjPDrs5sHRoZ4TIEeH6VxtdJk2Qbpc1uugLDYqN2jZFXnQqTKtdJFJgB-_uzTwTVuvGnny8f3Zt-dAAIECAw4CwqPDcp6u8qKGBD6eXcw-fHs5--HDxezyzdXFW0BECBkkQCAGZIBIAGl4dJjNd-cj_en6E7W6KdNGmj11s-pmPCaEzOhoKWTQqtyykMBfI0pnBh-hBC5Ov_u4j8YGfbOPIoPT9xMQCWi1VM1tXalA3alKb8nHMTScxDyELEq9racsqkYXpZojeb3qVFFdp1W-UNkcH8NCow7OEHGbPDNV2UTKmmBx3WfVbVp1Td3qIMuGK5UIq7aShdIL2aRtWnay1U1wm7dqo2XXtVnQX1iwVHdqOdpH4VbrRs5m6_X6eK2uW50d1-3NTG0a1RalqnQ3GzLN0usu6FSVB6awURo2TmNO0Scp8lnepgsd3NbLUrVBW2apDoYK1kWugiwL1EarqivqqgsIjrLyZ4vKVSfLou_gTulVI9NMN2nX9S1d5HIrncru6mp5b_4uMhWsFm16Iy-xffeANOtcfq-LN1d___FCRe82_3xPvm_av-XNes37iyqqG9U2bVFp2d2mARUhnBF5zuXpmTw_kSexpKeSRDLk8u2ZFCeSUckT-VbIRMhTLsNTyVFyIUMq2VvJiaQnkpxIEsuISXpmIuPzPv6NPDmXp8nD0epGG1Gkbovs01I9tkK52jz-3XbFT8oPpB_I3_5Aoh9IP5B-IH87A0l_XwN5V-TKPpBJCEkESQxJAkgIIEFgAlgILAIWAxIG5g0bSQRIzOcEEDkgCkAMATECxBhYApwAR-AUOAPOgQvgIfAIeAyICSA1o46AlAJPQBAQCIICUgZIzau7AMGe_SZIQri6iGcJeTpxSQSt3kzhGK4ukimcWKNN8bZwI4gtnglrOAvt0ZE9OnachcE7GnLLAndsiFwbXAyJYwM6GFC4NtgrNo3h2GA_EnOciBNrOEdHOLWHOxTl9nK5gDdXOIXttfLIHu3QHl3aU3upZmocGxzF9gRiggt7foGOcHt2M7DmqTvFHa1DBayWzUJlUwYGi6XaLFQWEDas9s-_JIK00fMkHJAYmrZeFEsVFPl8FJlsI-PhEUvIOJSOFrCPxRERE-PY4QHMwj6UiQGJxpFswONtZDTiYdA_ToO0uy9Lpdv7rfeg8jm-btLsk9LFT6n5Cg_KOlcG3GXebivyOaeE4GKUku-OzkZY9DIa8hk08Y5mXE3yBapRT2jwoZpkhIkvUM0ezfYSEcUIe6Fotmryp6LhTjQcRGMv1MxWzFMWTrZtNijG8VdXsuBPOWjPwYcx4C_sZEsd-xzbq-dDH_OHiy_yzVw8JJiT17pQ7WjS-fY2-XCZPLLuxMnO7QXxUVPjr2_q8Glh5gt82wajpqYvvCOLfhOa7SUhHd1S8qjDHOMhh_nYaxEslumNUXSzpbn84fLD426xPTcfji3QmY9-Rr7tAQWOzrybdzrcujDPkSYt2mBdVHm9Nt_KZHhC_MIPniSEm7q-CVpVXu_h-7-DRktZVsKiaPfQKs0-WSBolsUTOHZQxm7K2EoZTyljK6V5klk5zYKL1KxZWA28T_uA7fMyYadlwsnKhI2UiQnnDppQRg7KyE0ZWSmjKWXkUJe51GXPqMvs6jKLuszB66jVLLh5rdUaeMrrqjdx8SbP8CZ23sTCm9h50dFOZsHJi9aGMvCEF-0tZR71Dt5ndEa7zmjRGe06M4fMzK0ys4rMphozu8Qc7ZR8aguNliyUHCeUO2hC6Rge7p4dbh0dPp0cbh8c7ugj7m4jbu0iPm0ibu8h7mgh7u4gbm0gPu0f7hhTdI0pPjOmaB9TtIwpOsaUOprILDh5qbWNDDzhpY5GcpTL3dVya7F8Wiu3lyoclQp3ocJap5iWKexVCse4iOm4PBi3z5qcul4sOqWPvrhhi6ynZTdNI3vnMKjbQlW6f0k9-l8bu-JlRTTL9L5e6SBXy_R-lCZ8WZptnVldaVXpQN83Y0Gi_yaXLsqiuhlliV-WJauXdRt0TZqNj_LZtvfDXZJf3GA-d7pVaRk83fr8vxv0W_vXd5UHkxxW171_9feuu3fdB2_Qu-7edR9g77p719277t519667d9296-5dd--6e9fdu-77sHfdvevuXXfvunvX3QJ519277t51H7vuvWfuXXfvug_eoHfdves-wN519667d9296-5dd--6e9fdu-7edfeuu3fd92HvunvX3bvu3nX3rrsF8q67d9296z523fufbb8f1z1tmmWR9VOz897PjPl-efrhArb3H-SpTrPbtKrMfzJkc76tOob_L9p1mW4C860gxe5nX5luglJ1XXqjAqOjpCFFzo8Ovz74D0rhhTYRUwAA {}
+[00:25:24.988] Browser INFO    signal connected {}
+[00:25:24.988] Browser INFO    connected to Livekit Server edition: 1, version: 1.13.1, protocol: 17, region: Germany 2, nodeId: NM_OFRANKFURT1B_tTTgi8jmRMhs, debugInfo: , agentProtocol: 0 {"participant":"user-1782575285375","participantID":"PA_UiWeHj92rZPo","room":"voice-user-1782575285375","roomID":""}
+[00:25:25.143] Browser INFO    signal connected {}
+[00:25:25.144] Browser INFO    connected to Livekit Server edition: 1, version: 1.13.1, protocol: 17, region: Germany 2, nodeId: NM_OFRANKFURT1B_tTTgi8jmRMhs, debugInfo: , agentProtocol: 0 {"participant":"user-1782575285376","participantID":"PA_Haw9CApDfarj","room":"voice-user-1782575285376","roomID":""}
+[00:25:25.144] Browser INFO    connection state changed: connecting -> connected {"participant":"user-1782575285375","participantID":"PA_UiWeHj92rZPo","room":"voice-user-1782575285375","roomID":"RM_YPKjjDiSfyjg"}
+[00:25:25.144] Browser LOG     Connected to LiveKit room: voice-user-1782575285375
+[00:25:25.263] Browser INFO    connection state changed: connecting -> connected {"participant":"user-1782575285376","participantID":"PA_Haw9CApDfarj","room":"voice-user-1782575285376","roomID":"RM_EReCGEirjoGh"}
+[00:25:25.263] Browser LOG     Connected to LiveKit room: voice-user-1782575285376
+[00:26:12.367] Browser INFO    disconnect from room {"participant":"user-1782575285376","participantID":"PA_Haw9CApDfarj","room":"voice-user-1782575285376","roomID":"RM_EReCGEirjoGh"}
+[00:26:12.367] Browser INFO    connection state changed: connected -> disconnected {"participant":"user-1782575285376","participantID":"PA_Haw9CApDfarj","room":"voice-user-1782575285376","roomID":"RM_EReCGEirjoGh"}
+[00:26:12.367] Browser LOG     Disconnected from LiveKit room
+[00:33:22.495] Server  LOG     ✓ Compiled in 21ms
+[00:35:13.853] Browser INFO    Page leave detected, disconnecting {"participant":"user-1782575285375","participantID":"PA_UiWeHj92rZPo","room":"voice-user-1782575285375","roomID":"RM_YPKjjDiSfyjg"}
+[00:35:13.853] Browser INFO    disconnect from room {"participant":"user-1782575285375","participantID":"PA_UiWeHj92rZPo","room":"voice-user-1782575285375","roomID":"RM_YPKjjDiSfyjg"}
+[00:35:13.853] Browser INFO    connection state changed: connected -> disconnected {"participant":"user-1782575285375","participantID":"PA_UiWeHj92rZPo","room":"voice-user-1782575285375","roomID":"RM_YPKjjDiSfyjg"}
+[00:35:13.853] Browser LOG     Disconnected from LiveKit room
+[01:15:36.120] Browser INFO    connection state changed: disconnected -> connecting {"participant":"","participantID":"","room":""}
+[01:15:36.120] Browser INFO    connection state changed: disconnected -> connecting {"participant":"","participantID":"","room":""}
+[01:15:36.120] Browser INFO    signal connecting to wss://fe-dog-breeds-pv499o1m.livekit.cloud/rtc/v1?access_token=%3Credacted%3E&join_request=CAESkA8fiwgAAAAAAAAT7VzLbttIFoUHmEHDgBuYrHp59wNadevBRwVa-BH3A53A3U4y26HJkkxEfIAs2XL_T__d_MDsGkXKES1WueNJBmhMF-CFderWPXVP3StKx4APv_7q4MXf6DElx-Sbv__r4MVfvjqg__n14PCv9WKh2hf__vXgdk6ODut5AGFIkIsojCJkIY9FGIVA4fs38P0lB6TRMTkmx3h02M2Do0M9J0CODtO52ugybYJ0tarvgrLYqNygZVfkQafKtNJFJgH--frKwMu2Xjfy9N2b8x9fAQEECgw4CAiPDst5us6LGhJ4d345e_vj1eznt5ezq5P3lxeAiBAySIBADMgAkQDS8Ogwm2_PR_rT9SdqdVOmjTR76mbdzXhMCJnR0VLIoFW5ZSGBbyNKZwYfoQQuz16_20djg57so8jg7M0ERAJarVRzU1cqULeq0gP5OIaGk5iHkEWph3rKomp0Uao5kpfrThXVdVrlC5XN8WNYaNTBGSIOyTNTlU2krAkW131W3aZV19StDrJsd6USYd1WslB6IZu0TctOtroJbvJWbbTsujYL-gsLVupWrUb7KNxo3cjZ7O7u7vhOXbc6O67b5UxtGtUWpap0N9tlmqXXXdCpKg9MYaM0bJzGnKJPUuSzvE0XOripV6Vqg7bMUh3sKrgrchVkWaA2WlVdUVddQHCUlT9ZVK46WRZ9B3dKrxuZZrpJu65v6SKXg3Qqu62r1b35vchUsF606VKers7aB6S5y2X8U8H-cV3i6Ztv6c3F9Xfq9Q-vfsrOrvuLKqqlapu2qLTsbtKAihBIKOMT83PKZSwknssLIhMuOZcklq8iSc4lI5LH8pRJwiQ7keen8jyREcqISsHkRSj5uTw5kSExe09P5AWTIpKnVCJ5OFrdaCOK1G2RfVipj61Qrjcff2-74hflB9IP5B9_INEPpB9IP5B_nIGkf66BvC1yZR_IJIQkgiSGJAEkBJAgMAEsBBYBiwEJAyQckESAxLxOAJEDogDEEBAjQIyBJcAJcAROgTPgHLgAHgKPgMeAmABSM-oISCnwBAQBgSAoIGWA1Hx0FyDYk-8ESQjvL-NZQh5PXBJBqzdTOIb3l8kUTqzRpnhbuBHEFs-ENZyF9ujIHh07zsLgOxpyywJ3bIhcG1wMiWMDOhhQuDbYKzaN4dhgPxJznIgTazhHRzi1hzsU5fZyuYCT9ziF7bXyyB7t0B5d2lN7qWZqHBscxfYEYoILe36BjnB7djOw5qk7xR2tQwWsV81CZVMGBouV2ixUFhC2W-2ff0kEaaPnSbhDYmjaelGsVFDk81FkMkTGu0csIeNQOlrAPhZHREyMY3cPYBb2oUzskGgcyXZ4PERGIx4G_eM0SLv7slS6vR-8B5XP8WWTZh-ULn5JzVt4UNa5MuA287CtyOecEoKLUUq-PTobYdHzaMgn0MRbmnE1yReoRj2iwYdqkhEmvkA1ezTDJSKKEfZM0WzV5I9Fw61ouBONPVMzWzGPWTgZ2mynGMfPrmTBH3PQnoPvxoA_s5MtdexzDFfPd33MHy6-yDdz8ZBgTl7qQrWjSefDbfLdZfLIuhMnO4cL4qOmxs9v6vBxYeYNfGiDUVPTZ96RRb8JzXBJSEe3lHzUYY7xLod52WsRLFbp0ii6GWiufr56-3G3GM7Nd8cW6MxHPyHfcECBozNv553ubl2Y50iTFm1wV1R5fWfelcnuCfE7X3iSEJZ1vQxaVV7v4fvfg0ZLWVbComj30CrNPlggaFbFIzh2UMZuythKGU8pYyuleZJZOc2Ci9SsWVgNvE_7gO3zMmGnZcLJyoSNlIkJ5xaaUEYOyshNGVkpoyll5FCXudRlT6jL7Ooyi7rMweuo1Sy4ea3VGnjK66o3cfEmT_Amdt7EwpvYedHRTmbByYvWhjLwhBftLWUe9Q7eJ3RGu85o0RntOjOHzMytMrOKzKYaM7vEHO2UfGoLjZYslBwnlFtoQukYHu6eHW4dHT6dHG4fHO7oI-5uI27tIj5tIm7vIe5oIe7uIG5tID7tH-4YU3SNKT4xpmgfU7SMKTrGlDqayCw4eam1jQw84aWORnKUy93VcmuxfFort5cqHJUKd6HCWqeYlinsVQrHuIjpuDwYt0-anLpeLDqlj764YYusp2XLppG9cxjUbaEq3X9IPfpfG7vieUU0q_S-XusgV6v0fpQmfF6aoc6srrSqdKDvm7Eg0X-TSxdlUS1HWeLnZcnqVd0GXZNm46N8su39cJfkdzeY151uVVoGj7c-_XeDfmv_8V3lwSSH1XXvP_p719277jtv0Lvu3nXfwd519667d9296-5dd--6e9fdu-7edfeuu3fd92HvunvX3bvu3nX3rrsF8q67d9296z523Xnf9t519667d9296-5dd--6e9fdu-7edfeuu3fdvevuXXfvunvX3bvu3nX3rrt33b3r7l1377p71_3zXff-a9ufx3VPm2ZVZP3UbL33c2O-X529vYTh_oM81Wl2k1aV-SdDNufbqmP4_6Jdl-kmMO8KUmy_9pXpJihV16VLFRgdJQ0pcn50-M3Bb5ngMlQRUwAA {}
+[01:15:36.120] Browser INFO    signal connecting to wss://fe-dog-breeds-pv499o1m.livekit.cloud/rtc/v1?access_token=%3Credacted%3E&join_request=CAESkw8fiwgAAAAAAAAT7VzbbhvJEYUCJFgIUID4aR_rB0bs6stc2uCDTMn2Jl6vYlnOa0YzTWpgzgUzTYna_9mvyw_kMeghJY443VordoBFtt_I09V1uk5XccgjQId__u7gxZ_oMSXH5Pu__PPgxR--O6D__uXg8I_1fK7aF__65eBmSo4O62kAUciQxnGCgvMIY85ioPDDe_jhnAPS6Jgck2M8OuymwdGhnhIgR4fpVK11mTZBulzWt0FZrFVu0LIr8qBTZVrpIpMA__jxwsCLtl418tXl-9N3Z0AAgQIDDgLCo8Nymq7yooYELk_PJx_fXUw-fDyfXJx8On8NiAghgwQIxIAMEAkgDY8Os-n2fKQ_XX-iVjdl2kizp25W3YTHhJAJHSyFDFqVWxYSeBNROjH4ACVwPvvxch-NDXqyjyKD2fsRiAS0Wqrmuq5UoG5UpTfkwxgajmLuQ-al3tRTFlWji1JNkbxcdaqortIqn6tsig9hoVEHJ4i4SZ6ZqmwiZU0wv-qz6jatuqZudZBluyuVCKu2koXSc9mkbVp2stVNcJ23aq1l17VZ0F9YsFQ3ajnYR-Fa60ZOJre3t8e36qrV2XHdLiZq3ai2KFWlu8ku0yS96oJOVXlgChukYcM05hR9kiKf5G0618F1vSxVG7RllupgV8FtkasgywK11qrqirrqAoKDrPzJonLVybLoO7hTetXINNNN2nV9Sxe53Einspu6Wt6Z10WmgtW8TRfyrfj7m3ukuc3lm5ufLn9ib6t3f319eXf9N3V3na7O5h8-9xdVVAvVNm1RadldpwEVIZyeSEJkkkh2KmcnMjqTyCSdmdenVL4mMmJyFkt-Js_O5KtIvgplQmVE5EkixZl8NZMnoYxiOYvkLJRITUB0JmcoIy5nr--PVjfaiCJ1W2Sfl-qhFcrV-uF12xU_Kz-QfiB_-wOJfiD9QPqB_O0MJP19DeRNkSv7QCYhJBEkMSQJICGABIEJYCGwCFgMSBgg4YAkAiTmfQKIHBAFIIaAGAFiDCwBToAjcAqcAefABfAQeAQ8BsQEkJpRR0BKgScgCAgEQQEpA6Tmq7sAwZ78JEhC-HQeTxLyeOKSCFq9HsMxfDpPxnBijTbF28KNILZ4JqzhLLRHR_bo2HEWBm9pyC0L3LEhcm1wMSSODehgQOHaYK_YNIZjg_1IzHEiTqzhHB3h1B7uUJTby-UCTj7hGLbXyiN7tEN7dGlP7aWaqXFscBTbE4gRLuz5BTrC7dnNwJqn7hh3tA4VsFo2c5WNGRjMl2o9V1lA2G61f_4lEaSNnibhDomhaet5sVRBkU8HkckmMt49YgkZhtLBAvaxOCBiYhi7ewCzsA9lYodEw0i2w-NNZDTgYdA_ToO0uytLpdu7jfeg8im-bNLss9LFz6n5CA_KOlcG3GbebCvyKaeE4HyQkm-PzgZY9Dwa8gU08ZZmWE3yDapRj2jwvppkgIlvUM0ezeYSEcUAe6Zotmryx6LhVjTcicaeqZmtmMcsnGzabKcYx6-uZM4fc9Ceg-_GgD-zky117HNsrp7v-pjfX3yRr6fiPsGUvNSFageTzje3yXeXySPrThzt3FwQHzQ1fn1Th48LMx_gmzYYNDV95h1Z9BvRbC4J6eCWkgcdphjvcpi3vRbBfJkujKLrDc3Fh4uPD7vF5tx8d2yBznz0C_JtDihwcObtvNPdrQvzHGnSog1uiyqvb82nMtk9IX7lB08SwqKuF0Gryqs9fP930GApy0qYF-0eWqXZZwsEzbJ4BMcOythNGVsp4zFlbKU0TzIrp1lwkZo1C6uB92nvsX1eJuy0TDhZmbCRMjHi3EIjyshBGbkpIytlNKaMHOoyl7rsCXWZXV1mUZc5eB21mgU3r7VaA495XfUmLt7kCd7EzptYeBM7LzraySw4edHaUAYe8aK9pcyj3sH7hM5o1xktOqNdZ-aQmblVZlaR2VhjZpeYo52Sj22hwZKFkuOIcguNKB3Dw92zw62jw8eTw-2Dwx19xN1txK1dxMdNxO09xB0txN0dxK0NxMf9wx1jiq4xxSfGFO1jipYxRceYUkcTmQUnL7W2kYFHvNTRSI5yubtabi2Wj2vl9lKFo1LhLlRY6xTjMoW9SuEYFzEel3vj9kmTU9fzeaf00Tc3bJH1tGzRNLJ3DoO6LVSl-y-pR_9rY1c8r4hmmd7VKx3kapneDdKEz0uzqTOrK60qHei7ZihI9N_k0kVZVItBlvh5WbJ6WbdB16TZ8ChfbHvf3yX51Q3mfadblZbB461P_92g39p_fVd5MMphdd37r_7edfeu-84b9K67d913sHfdvevuXXfvunvX3bvu3nX3rrt33b3r7l33fdi77t519667d929626BvOvuXXfvug9dd963vXfdvevuXXfvunvX3bvu3nX3rrt33b3r7l1377p719277t519667d9296-5dd--6e9fdu-7edf96173_2fb7cd3TplkWWT81W-_91JjvF7OP57C5_yBPdZpdp1Vl_smQzfm26hj-v2jXZboJzKeCFNuffWW6DkrVdelCBUZHSUOKnB8dfn_wH5rBRVYQUwAA {}
+[01:15:36.335] Browser INFO    signal connected {}
+[01:15:36.335] Browser INFO    connected to Livekit Server edition: 1, version: 1.13.1, protocol: 17, region: Germany 2, nodeId: NM_OFRANKFURT1B_tTTgi8jmRMhs, debugInfo: , agentProtocol: 0 {"participant":"user-1782578292565","participantID":"PA_Nn5ZGGgYLNZu","room":"voice-user-1782578292565","roomID":""}
+[01:15:36.539] Browser INFO    signal connected {}
+[01:15:36.539] Browser INFO    connected to Livekit Server edition: 1, version: 1.13.1, protocol: 17, region: Germany 2, nodeId: NM_OFRANKFURT1B_9EqWX9G6c56w, debugInfo: , agentProtocol: 0 {"participant":"user-1782578292566","participantID":"PA_eYUH6ZjazyJW","room":"voice-user-1782578292566","roomID":""}
+[01:15:36.539] Browser INFO    connection state changed: connecting -> connected {"participant":"user-1782578292565","participantID":"PA_Nn5ZGGgYLNZu","room":"voice-user-1782578292565","roomID":"RM_vyZWWmnpCVLK"}
+[01:15:36.539] Browser LOG     Connected to LiveKit room: voice-user-1782578292565
+[01:15:36.662] Browser INFO    connection state changed: connecting -> connected {"participant":"user-1782578292566","participantID":"PA_eYUH6ZjazyJW","room":"voice-user-1782578292566","roomID":"RM_RndvHeoAcbC2"}
+[01:15:36.662] Browser LOG     Connected to LiveKit room: voice-user-1782578292566
+[01:15:50.588] Browser INFO    unpublishing track {"enabled":true,"muted":false,"participant":"user-1782578292566","participantID":"PA_eYUH6ZjazyJW","room":"voice-user-1782578292566","roomID":"","trackID":"TR_AMsuCNfxq2FKTM","trackInfo":{"enabled":true,"encrypted":false,"kind":"audio","mimeType":"","muted":false,"name":"","source":"microphone","streamID":"3981f98b-fd3b-4281-b033-653a496ee989","streamTrackID":"3981f98b-fd3b-4281-b033-653a496ee989","trackID":"TR_AMsuCNfxq2FKTM"}}
+[01:16:13.084] Browser INFO    unpublishing track {"enabled":true,"muted":false,"participant":"user-1782578292566","participantID":"PA_eYUH6ZjazyJW","room":"voice-user-1782578292566","roomID":"","trackID":"TR_AMC4VWbHKEj9ok","trackInfo":{"enabled":true,"encrypted":false,"kind":"audio","mimeType":"","muted":false,"name":"","source":"microphone","streamID":"e4fef742-1491-485b-86bd-d30e0ea122c2","streamTrackID":"e4fef742-1491-485b-86bd-d30e0ea122c2","trackID":"TR_AMC4VWbHKEj9ok"}}
