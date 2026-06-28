@@ -1,19 +1,20 @@
 # Deployment
 
-Three targets:
+The live setup:
 
-- **Free cloud (recommended)** — Vercel + Render + Neon + Gemini (below).
+- **Text chat (free)** — Vercel + Render + Neon + Gemini (chat) + Jina (embeddings).
+- **Voice (always-on)** — a LiveKit agent worker on Fly.io (small cost) + LiveKit
+  Cloud + OpenAI STT/TTS.
 - **Local / self-hosted** — Docker Compose.
-- **Paid cloud** — Fly.io with self-hosted Ollama (for fully-local inference).
 
 The key idea: **don't self-host the 8B model** (that's the expensive part). Set
-`INFERENCE_PROVIDER=openai` and point at a free OpenAI-compatible API (Google
-Gemini), so the backend is a lightweight web service that fits free tiers. Local
-dev still uses Ollama (`INFERENCE_PROVIDER=ollama`, the default).
+`INFERENCE_PROVIDER=openai` and point at hosted free APIs, so the backend is a
+lightweight web service that fits free tiers. Local dev still uses Ollama
+(`INFERENCE_PROVIDER=ollama`, the default).
 
 ---
 
-## Free cloud: Vercel + Render + Neon + Gemini
+## Text chat — free cloud (Vercel + Render + Neon + Gemini + Jina)
 
 ```
 Vercel (Next.js)  ──►  Render (FastAPI, free)  ──►  Neon Postgres (pgvector)
@@ -37,9 +38,7 @@ Create a free project at <https://neon.tech> and copy the connection string. The
 **pooled** endpoint works (verified — `CREATE EXTENSION` succeeds on it); the
 **direct** host (same string without `-pooler`) also works. It already includes
 `?sslmode=require`. `pgvector` and `pg_trgm` are created automatically on first
-connect.
-> (Supabase also works if you have a free slot — use its **Session pooler** URI,
-> port 5432, not the Transaction pooler on 6543.)
+connect. (Supabase also works — use its **Session pooler** URI on port 5432.)
 
 ### 3. Ingest the book once (into Neon)
 Put the prod values in `server/.env.prod` (gitignored) and run locally so Render
@@ -61,114 +60,47 @@ uv run python -m src.ingest --force
 Push to GitHub, then Render → **New + → Blueprint** and pick the repo (uses
 [`render.yaml`](../render.yaml)). Set the `sync: false` secrets in the dashboard:
 `INFERENCE_API_KEY` (Gemini), `INFERENCE_EMBEDDING_API_KEY` (Jina), `DATABASE_URL`
-(Neon), `ALLOWED_ORIGINS` (your Vercel URL), and optionally `LIVEKIT_URL`,
-`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (voice). Free service sleeps after ~15 min
-idle (cold start ~50s).
+(Neon), `ALLOWED_ORIGINS` (your Vercel URL), and (for voice) `LIVEKIT_URL`,
+`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Free service sleeps after ~15 min idle
+(cold start ~50s); the connection pool revalidates on wake, and Neon wakes in ~1s.
 
 ### 5. Frontend on Vercel
-Import the repo, **root directory = `client/`**, set
-`NEXT_PUBLIC_RAG_API_URL=https://<your-render-app>.onrender.com`, deploy.
-
-### Voice (near-free, not 100%)
-Voice's LLM now uses Gemini too, but it still needs: a LiveKit Cloud project
-(free tier), **paid** STT/TTS (OpenAI, or Groq Whisper for cheaper STT), and an
-**always-on agent worker** — Render's free tier only runs (sleeping) web
-services, so the worker needs a small paid host (Render background worker ~$7/mo)
-or a free-with-idle-sleep host (Hugging Face Space). Deploy text first; add voice
-when you've picked a worker host.
+Import the repo, **Root Directory = `client`**, set
+`NEXT_PUBLIC_RAG_API_URL=https://<your-render-app>.onrender.com`, deploy. Then set
+Render's `ALLOWED_ORIGINS` to your Vercel URL and redeploy.
 
 ---
 
-## Paid cloud: Vercel + Fly.io (self-hosted Ollama)
+## Voice — always-on agent worker on Fly.io
 
-Use this only if you want inference to stay fully local (no third-party model
-API). It requires a Fly GPU/CPU machine for Ollama — not free.
-
-### Topology
-
-```
-Vercel (Next.js)  ──►  Fly app "dog-breed-rag"  ──►  Supabase/Neon Postgres (pgvector)
-                        ├─ process: api          ──►  Fly: dog-breed-rag-ollama (LLM+embeddings)
-                        └─ process: agent  ──► LiveKit Cloud ◄──Browser ;  agent ──► OpenAI (STT/TTS)
-```
-
-**Two** Fly apps:
-- [`fly.toml`](../server/fly.toml) — one app running both the **API** and the
-  **voice agent** as separate `[processes]` groups from `server/Dockerfile`.
-- [`fly.ollama.toml`](../server/fly.ollama.toml) — the Ollama server (separate
-  app: different image + GPU/volume).
-
-### 1. Database (Supabase or Neon)
-
-Create a Postgres database and copy its connection string. `pgvector` and
-`pg_trgm` are enabled automatically on first boot (the app runs
-`CREATE EXTENSION IF NOT EXISTS …`). Note the DB is `vector(768)` for
-`nomic-embed-text`.
-
-### 2. Ollama app (LLM + embeddings)
+The browser connects to LiveKit Cloud (token minted by the Render API) fine on its
+own, but voice stays "connecting" until an **agent worker** joins the room. The
+worker is long-lived and connects *out* to LiveKit Cloud (no inbound ports), so it
+needs an always-on host — Render's free tier sleeps, so we use Fly.io (~$2–3/mo).
+Config: [`fly.agent.toml`](../server/fly.agent.toml).
 
 ```bash
 cd server
-fly apps create dog-breed-rag-ollama
-fly volumes create ollama_models --size 20 -a dog-breed-rag-ollama -r fra
-fly deploy -c fly.ollama.toml
-# Pull the models into the volume (once):
-fly ssh console -a dog-breed-rag-ollama -C "ollama pull nomic-embed-text"
-fly ssh console -a dog-breed-rag-ollama -C "ollama pull llama3.1:8b"
+fly apps create dog-breed-rag-agent
+fly secrets set -a dog-breed-rag-agent \
+  INFERENCE_API_KEY="<gemini>" \
+  INFERENCE_EMBEDDING_API_KEY="<jina>" \
+  DATABASE_URL="<neon>" \
+  LIVEKIT_API_KEY="<lk-key>" LIVEKIT_API_SECRET="<lk-secret>" \
+  OPENAI_API_KEY="<openai>"
+fly deploy -c fly.agent.toml
+fly scale count 1 -c fly.agent.toml     # keep exactly one running, always on
 ```
 
-CPU works but is slow on an 8B model; for good latency use a Fly **GPU** machine
-(needs GPU access, ~$1–3/hr) — see the comments in `fly.ollama.toml`. The answer
-cache hides repeated questions either way.
-
-### 3. API + agent app (one app, two processes)
-
-```bash
-fly apps create dog-breed-rag
-fly secrets set \
-  DATABASE_URL="postgresql://...supabase/neon..." \
-  LIVEKIT_URL="wss://<project>.livekit.cloud" \
-  LIVEKIT_API_KEY="..." LIVEKIT_API_SECRET="..." \
-  OPENAI_API_KEY="sk-..."
-# Edit ALLOWED_ORIGINS in fly.toml to your Vercel domain, then:
-fly deploy
-fly scale count api=1 agent=1     # one machine per process group
-```
-
-The `api` process serves HTTP and on first boot auto-ingests the bundled PDF
-(idempotent). The `agent` process is a worker with no inbound ports; keep it at
-count ≥ 1 so voice can be answered. Both processes share the app's secrets.
-
-### 5. Frontend (Vercel)
-
-Import the repo in Vercel with **root directory = `client/`** (Next.js
-auto-detected). Set env var:
-
-```
-NEXT_PUBLIC_RAG_API_URL = https://dog-breed-rag.fly.dev
-```
-
-Then redeploy. Voice works from the Vercel-hosted site because the browser
-connects to LiveKit Cloud directly using a token minted by the API.
-
-### Networking notes
-
-- The API/agent reach Ollama privately at `dog-breed-rag-ollama.internal:11434`
-  (Fly 6PN) — no public Ollama port. The machine must stay running for `.internal`
-  to resolve; for scale-to-zero use a Flycast service (`.flycast`).
-- Put both Fly apps in the **same region** and org for low-latency private
-  networking.
-- Split alternative: you can instead run the API and agent as two separate Fly
-  apps (one `fly.toml` each) if you want to scale or deploy them independently.
-
-### Pre-prod checklist
-
-- [ ] `ALLOWED_ORIGINS` set to the Vercel domain (no `*`).
-- [ ] Secrets via `fly secrets` (never in `[env]` or `NEXT_PUBLIC_*`).
-- [ ] Add auth to `/api/voice/session` (token-mint abuse) and disable/restrict
-      `/ingest` (reads arbitrary server paths) — see [api-reference.md](api-reference.md).
-- [ ] Ollama models pulled into the volume.
-- [ ] API `min_machines_running = 1` so startup ingest runs and avoids cold starts.
+Notes:
+- Non-secret env (provider URLs, models, `LIVEKIT_URL`) is in `fly.agent.toml`.
+- It reuses the **same Neon DB** as the API, so voice answers from the same data.
+- Speech (OpenAI STT/TTS) is usage-billed — a few cents per conversation.
+- If the machine OOMs loading the Silero VAD, bump RAM: `fly scale memory 1024 -c fly.agent.toml`.
+- Watch logs: `fly logs -a dog-breed-rag-agent`.
+- **Cheaper alternative:** run the worker locally during a demo
+  (`uv run python -m src.livekit_agent dev`) — it dials out to LiveKit Cloud and
+  auto-joins rooms; $0 hosting, only STT/TTS usage.
 
 ---
 
@@ -193,3 +125,15 @@ docker compose logs -f rag-api
 Containers reach the host's Ollama via `host.docker.internal` — set
 `OLLAMA_BASE_URL=http://host.docker.internal:11434` in the container env if needed.
 On API startup, PDFs in `data/` are auto-ingested (idempotent).
+
+---
+
+## Pre-prod checklist
+
+- [ ] `ALLOWED_ORIGINS` set to your Vercel domain (not `*`).
+- [ ] All secrets via the platform (Render dashboard / `fly secrets`) — never in
+      git or `NEXT_PUBLIC_*`.
+- [ ] Add auth to `/api/voice/session` (token-mint abuse) and disable/restrict
+      `/ingest` (reads arbitrary server paths) — see [api-reference.md](api-reference.md).
+- [ ] Book ingested once into Neon (so Render/Fly don't re-embed on cold start).
+- [ ] Voice agent kept at `count 1` on Fly so it can always answer.

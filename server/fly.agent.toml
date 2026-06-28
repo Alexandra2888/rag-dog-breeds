@@ -1,0 +1,47 @@
+# Fly.io config — always-on LiveKit voice-agent worker.
+# Pairs with the free stack: API on Render, DB on Neon, chat on Gemini,
+# embeddings on Jina, speech on OpenAI. The worker connects OUT to LiveKit Cloud
+# (no inbound ports) and auto-joins rooms minted by the API.
+#
+# Deploy:
+#   cd server
+#   fly apps create dog-breed-rag-agent
+#   fly secrets set -a dog-breed-rag-agent \
+#     INFERENCE_API_KEY="<gemini>" INFERENCE_EMBEDDING_API_KEY="<jina>" \
+#     DATABASE_URL="<neon>" \
+#     LIVEKIT_API_KEY="<lk-key>" LIVEKIT_API_SECRET="<lk-secret>" \
+#     OPENAI_API_KEY="<openai>"
+#   fly deploy -c fly.agent.toml
+#   fly scale count 1 -c fly.agent.toml     # keep it always on
+
+app = "dog-breed-rag-agent"
+primary_region = "fra"          # match your LiveKit Cloud region (Germany) for low latency
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Run the LiveKit worker (Dockerfile default is the API; override here).
+[processes]
+  agent = "python -m src.livekit_agent start"
+
+[env]
+  INFERENCE_PROVIDER = "openai"
+  INFERENCE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+  INFERENCE_CHAT_MODEL = "gemini-2.5-flash"
+  INFERENCE_EMBEDDING_BASE_URL = "https://api.jina.ai/v1"
+  INFERENCE_EMBEDDING_MODEL = "jina-embeddings-v2-base-en"
+  INFERENCE_EMBEDDING_DIM = "0"
+  LIVEKIT_URL = "wss://fe-dog-breeds-pv499o1m.livekit.cloud"
+
+# Secrets (set with `fly secrets set ...`), NOT committed:
+#   INFERENCE_API_KEY            Gemini key (chat)
+#   INFERENCE_EMBEDDING_API_KEY  Jina key (embeddings)
+#   DATABASE_URL                 Neon (same DB as the API)
+#   LIVEKIT_API_KEY / LIVEKIT_API_SECRET
+#   OPENAI_API_KEY               STT + TTS
+
+# No [http_service]: this is a worker. With no services, the machine does not
+# auto-stop — keep exactly one running with `fly scale count 1`.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"   # if it OOMs on Silero VAD load, bump: fly scale memory 1024

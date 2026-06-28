@@ -141,8 +141,9 @@ model — is never self-hosted.
 - Voice can't be fully free (paid STT/TTS + an always-on worker), so the free
   deploy ships text first; voice's LLM also moved to Gemini.
 
-The Fly.io path is kept in the repo as the documented **paid alternative** for
-anyone who wants fully-local inference (no third-party model API).
+Fly.io is now used for one thing: hosting the always-on **voice agent worker**
+([`fly.agent.toml`](../server/fly.agent.toml)), since voice needs a long-lived
+process that free web tiers (which sleep) can't provide.
 
 ## Things I'd do next (shows awareness, not gaps)
 
