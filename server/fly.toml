@@ -1,0 +1,54 @@
+# Fly.io config — single app running BOTH the FastAPI API and the LiveKit
+# voice-agent worker as separate process groups from one image.
+# Deploy:  fly deploy
+# Scale:   fly scale count api=1 agent=1
+#
+# (Ollama runs as its own app — see fly.ollama.toml — because it uses a
+#  different image and a GPU/volume.)
+
+app = "dog-breed-rag"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Two process groups from the same image. The image's default CMD is ignored
+# when [processes] is set.
+[processes]
+  api = "uvicorn src.main:app --host 0.0.0.0 --port 8000"
+  agent = "python -m src.livekit_agent start"
+
+[env]
+  API_PORT = "8000"
+  # Reach the Ollama Fly app over private 6PN networking (no public port).
+  OLLAMA_BASE_URL = "http://dog-breed-rag-ollama.internal:11434"
+  OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
+  OLLAMA_CHAT_MODEL = "llama3.1:8b"
+  # Lock CORS to your Vercel frontend (comma-separated for multiple).
+  ALLOWED_ORIGINS = "https://your-app.vercel.app"
+
+# Secrets (shared by both processes; set with `fly secrets set ...`), NOT in [env]:
+#   DATABASE_URL          postgres+pgvector (Supabase/Neon)
+#   LIVEKIT_URL           wss://<project>.livekit.cloud
+#   LIVEKIT_API_KEY       (API mints voice tokens; agent joins rooms)
+#   LIVEKIT_API_SECRET
+#   OPENAI_API_KEY        required by the agent for STT + TTS
+
+# Public HTTP — bound to the API process only. The agent has no inbound ports
+# (it connects out to LiveKit Cloud).
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["api"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+    hard_limit = 40
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

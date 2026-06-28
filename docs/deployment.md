@@ -13,15 +13,16 @@ Two supported targets:
 ### Topology
 
 ```
-Vercel (Next.js)  ──►  Fly: dog-breed-rag-api  ──►  Supabase/Neon Postgres (pgvector)
-                                  │  └────────────►  Fly: dog-breed-rag-ollama (LLM+embeddings)
-Browser ──WebRTC──► LiveKit Cloud ◄── Fly: dog-breed-rag-agent ──► OpenAI (STT/TTS)
+Vercel (Next.js)  ──►  Fly app "dog-breed-rag"  ──►  Supabase/Neon Postgres (pgvector)
+                        ├─ process: api          ──►  Fly: dog-breed-rag-ollama (LLM+embeddings)
+                        └─ process: agent  ──► LiveKit Cloud ◄──Browser ;  agent ──► OpenAI (STT/TTS)
 ```
 
-Three Fly apps share one Docker image (`server/Dockerfile`) via the configs in
-`server/`: [`fly.api.toml`](../server/fly.api.toml),
-[`fly.agent.toml`](../server/fly.agent.toml),
-[`fly.ollama.toml`](../server/fly.ollama.toml).
+**Two** Fly apps:
+- [`fly.toml`](../server/fly.toml) — one app running both the **API** and the
+  **voice agent** as separate `[processes]` groups from `server/Dockerfile`.
+- [`fly.ollama.toml`](../server/fly.ollama.toml) — the Ollama server (separate
+  app: different image + GPU/volume).
 
 ### 1. Database (Supabase or Neon)
 
@@ -46,32 +47,23 @@ CPU works but is slow on an 8B model; for good latency use a Fly **GPU** machine
 (needs GPU access, ~$1–3/hr) — see the comments in `fly.ollama.toml`. The answer
 cache hides repeated questions either way.
 
-### 3. API app (FastAPI)
+### 3. API + agent app (one app, two processes)
 
 ```bash
-fly apps create dog-breed-rag-api
-fly secrets set -c fly.api.toml \
+fly apps create dog-breed-rag
+fly secrets set \
   DATABASE_URL="postgresql://...supabase/neon..." \
-  LIVEKIT_URL="wss://<project>.livekit.cloud" \
-  LIVEKIT_API_KEY="..." LIVEKIT_API_SECRET="..."
-# Edit ALLOWED_ORIGINS in fly.api.toml to your Vercel domain, then:
-fly deploy -c fly.api.toml
-```
-
-On first boot the API auto-ingests the bundled PDF into the DB (idempotent).
-
-### 4. Voice agent app
-
-```bash
-fly apps create dog-breed-rag-agent
-fly secrets set -c fly.agent.toml \
-  DATABASE_URL="postgresql://...same as API..." \
   LIVEKIT_URL="wss://<project>.livekit.cloud" \
   LIVEKIT_API_KEY="..." LIVEKIT_API_SECRET="..." \
   OPENAI_API_KEY="sk-..."
-fly deploy -c fly.agent.toml
-fly scale count 1 -c fly.agent.toml      # keep the worker always on
+# Edit ALLOWED_ORIGINS in fly.toml to your Vercel domain, then:
+fly deploy
+fly scale count api=1 agent=1     # one machine per process group
 ```
+
+The `api` process serves HTTP and on first boot auto-ingests the bundled PDF
+(idempotent). The `agent` process is a worker with no inbound ports; keep it at
+count ≥ 1 so voice can be answered. Both processes share the app's secrets.
 
 ### 5. Frontend (Vercel)
 
@@ -79,7 +71,7 @@ Import the repo in Vercel with **root directory = `client/`** (Next.js
 auto-detected). Set env var:
 
 ```
-NEXT_PUBLIC_RAG_API_URL = https://dog-breed-rag-api.fly.dev
+NEXT_PUBLIC_RAG_API_URL = https://dog-breed-rag.fly.dev
 ```
 
 Then redeploy. Voice works from the Vercel-hosted site because the browser
@@ -90,10 +82,10 @@ connects to LiveKit Cloud directly using a token minted by the API.
 - The API/agent reach Ollama privately at `dog-breed-rag-ollama.internal:11434`
   (Fly 6PN) — no public Ollama port. The machine must stay running for `.internal`
   to resolve; for scale-to-zero use a Flycast service (`.flycast`).
-- Put all three Fly apps in the **same region** and org for low-latency private
+- Put both Fly apps in the **same region** and org for low-latency private
   networking.
-- Single-app alternative: you can collapse API+agent into one Fly app with two
-  `[processes]` groups instead of two apps.
+- Split alternative: you can instead run the API and agent as two separate Fly
+  apps (one `fly.toml` each) if you want to scale or deploy them independently.
 
 ### Pre-prod checklist
 
