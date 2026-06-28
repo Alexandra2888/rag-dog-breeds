@@ -23,8 +23,10 @@ Vercel (Next.js)  ──►  Render (FastAPI, free)  ──►  Supabase Postgre
 
 ### 1. Gemini key
 Create a free key at <https://aistudio.google.com/apikey>. One key does both
-chat (`gemini-2.0-flash`) and embeddings (`text-embedding-004`, 768-dim → matches
-the DB schema, no migration).
+chat (`gemini-2.5-flash`) and embeddings (`gemini-embedding-001`, requested at
+**768-dim** via the `dimensions` param to match the DB schema — no migration).
+Free-tier limits to know: embeddings ~**100 items/min** (so the one-time ingest
+is throttled, ~8 min) and a modest chat RPM/day — fine for a demo.
 
 ### 2. Supabase database
 Create a free project at <https://supabase.com>. In **Project Settings →

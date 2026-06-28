@@ -41,8 +41,12 @@ class Settings(BaseSettings):
         default="gemini-2.0-flash", alias="INFERENCE_CHAT_MODEL"
     )
     inference_embedding_model: str = Field(
-        default="text-embedding-004", alias="INFERENCE_EMBEDDING_MODEL"
+        default="gemini-embedding-001", alias="INFERENCE_EMBEDDING_MODEL"
     )
+    # Output dimension for the "openai" embedding provider. gemini-embedding-001
+    # defaults to 3072 but supports 768 to match the DB schema (vector(768)).
+    # Set 0 to omit the param (for providers with a fixed dimension).
+    inference_embedding_dim: int = Field(default=768, alias="INFERENCE_EMBEDDING_DIM")
 
     # Chunking
     chunk_size: int = Field(default=1000, alias="CHUNK_SIZE")

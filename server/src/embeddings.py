@@ -69,9 +69,12 @@ class EmbeddingGenerator:
         prompt = self._apply_task_prefix(text, input_type)
         try:
             if self.provider == "openai":
-                response = self.openai_client.embeddings.create(
-                    model=self.model, input=prompt
-                )
+                kwargs = {"model": self.model, "input": prompt}
+                # Request a specific output dimension when set (e.g. 768 for
+                # gemini-embedding-001 to match the DB schema).
+                if settings.inference_embedding_dim:
+                    kwargs["dimensions"] = settings.inference_embedding_dim
+                response = self.openai_client.embeddings.create(**kwargs)
                 return response.data[0].embedding
             if self.client:
                 response = self.client.embeddings(model=self.model, prompt=prompt)
@@ -93,25 +96,73 @@ class EmbeddingGenerator:
         Returns:
             List of embedding vectors
         """
+        # OpenAI-compatible APIs accept a list input, so embed many per request
+        # (far fewer calls → stays well under rate limits).
+        if self.provider == "openai":
+            return self._generate_embeddings_openai(texts)
+
         embeddings = []
         total = len(texts)
-        
+
         logger.info(f"Generating embeddings for {total} texts in batches of {batch_size}")
-        
+
         for i in range(0, total, batch_size):
             batch = texts[i:i + batch_size]
             batch_embeddings = []
-            
+
             for text in batch:
                 embedding = self.generate_embedding(text)
                 batch_embeddings.append(embedding)
-            
+
             embeddings.extend(batch_embeddings)
-            
+
             if (i + batch_size) % (batch_size * 10) == 0 or i + batch_size >= total:
                 logger.info(f"Processed {min(i + batch_size, total)}/{total} embeddings")
-        
+
         logger.info(f"Generated {len(embeddings)} embeddings")
+        return embeddings
+
+    # Free Gemini embedding tier allows ~100 items/minute. Stay just under it and
+    # pace batches so a one-time bulk ingest doesn't trip the rate limit.
+    OPENAI_EMBED_BATCH = 95
+    OPENAI_EMBED_PAUSE = 61  # seconds between batches
+
+    def _generate_embeddings_openai(self, texts: List[str]) -> List[List[float]]:
+        """Batch-embed via an OpenAI-compatible API, rate-limited with retry/backoff."""
+        import time
+
+        embeddings: List[List[float]] = []
+        total = len(texts)
+        dims = settings.inference_embedding_dim
+        batch_size = self.OPENAI_EMBED_BATCH
+        logger.info(f"Embedding {total} texts via {self.model} (batches of {batch_size}, ~100/min)")
+
+        for i in range(0, total, batch_size):
+            batch = texts[i:i + batch_size]
+            kwargs = {"model": self.model, "input": batch}
+            if dims:
+                kwargs["dimensions"] = dims
+            for attempt in range(6):
+                try:
+                    resp = self.openai_client.embeddings.create(**kwargs)
+                    # Gemini returns items in input order (index is unset), so
+                    # don't sort — just take them as returned.
+                    embeddings.extend(d.embedding for d in resp.data)
+                    break
+                except Exception as e:
+                    if attempt == 5:
+                        logger.error(f"Embedding batch failed after retries: {e}")
+                        raise
+                    # Honor rate-limit backoff (longer wait on 429).
+                    msg = str(e)
+                    wait = 61 if ("429" in msg or "RESOURCE_EXHAUSTED" in msg) else 2 ** attempt
+                    logger.warning(f"Embedding batch error; retrying in {wait}s")
+                    time.sleep(wait)
+            logger.info(f"Embedded {min(i + batch_size, total)}/{total}")
+            # Pace the next batch to respect the per-minute free limit.
+            if i + batch_size < total:
+                time.sleep(self.OPENAI_EMBED_PAUSE)
+
         return embeddings
     
     def get_embedding_dimension(self) -> int:

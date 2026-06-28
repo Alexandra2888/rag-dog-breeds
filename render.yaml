@@ -24,9 +24,11 @@ services:
       - key: INFERENCE_BASE_URL
         value: https://generativelanguage.googleapis.com/v1beta/openai/
       - key: INFERENCE_CHAT_MODEL
-        value: gemini-2.0-flash
+        value: gemini-2.5-flash
       - key: INFERENCE_EMBEDDING_MODEL
-        value: text-embedding-004
+        value: gemini-embedding-001
+      - key: INFERENCE_EMBEDDING_DIM
+        value: "768"
       # Secrets — set these in the Render dashboard (not committed):
       - key: INFERENCE_API_KEY        # Google AI Studio (Gemini) key
         sync: false

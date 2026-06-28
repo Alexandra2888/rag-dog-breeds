@@ -1,8 +1,8 @@
-# Environment
-server/.env
-client/.env
+# Environment — ignore all .env variants (incl. .env.prod, .env.local),
+# but keep the committed .env.example templates.
 **/.env
-**/.env.local
+**/.env.*
+!**/.env.example
 
 # Node / Next.js
 node_modules/
