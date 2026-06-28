@@ -1,0 +1,16 @@
+{"question": "Where does the Weimaraner come from?", "ground_truth": "The Weimaraner originates from Germany.", "expected_breed": "WEIMARANER"}
+{"question": "What country does the Dachshund originate from?", "ground_truth": "The Dachshund comes from Germany.", "expected_breed": "DACHSHUND"}
+{"question": "What is the origin of the Rottweiler?", "ground_truth": "The Rottweiler originates from Germany.", "expected_breed": "ROTTWEILER"}
+{"question": "Where is the Chihuahua originally from?", "ground_truth": "The Chihuahua comes from Mexico.", "expected_breed": "CHIHUAHUA"}
+{"question": "What country is the Akita from?", "ground_truth": "The Akita originates from Japan.", "expected_breed": "AKITA"}
+{"question": "Where does the Poodle originate?", "ground_truth": "The Poodle comes from France.", "expected_breed": "POODLE"}
+{"question": "What is the country of origin of the Samoyed?", "ground_truth": "The Samoyed originates from Russia.", "expected_breed": "SAMOYED"}
+{"question": "Where is the German Shepherd Dog from?", "ground_truth": "The German Shepherd Dog originates from Germany.", "expected_breed": "GERMAN SHEPHERD DOG"}
+{"question": "What is the origin of the Golden Retriever?", "ground_truth": "The Golden Retriever comes from the United Kingdom.", "expected_breed": "GOLDEN RETRIEVER"}
+{"question": "Where does the Pug come from?", "ground_truth": "The Pug originates from China.", "expected_breed": "PUG"}
+{"question": "What country is the Border Collie from?", "ground_truth": "The Border Collie comes from the United Kingdom.", "expected_breed": "BORDER COLLIE"}
+{"question": "Where is the Bulldog originally from?", "ground_truth": "The Bulldog originates from the United Kingdom.", "expected_breed": "BULLDOG"}
+{"question": "What is the origin of the Pharaoh Hound?", "ground_truth": "The Pharaoh Hound comes from Malta.", "expected_breed": "PHARAOH HOUND"}
+{"question": "Where does the Weimeraner originate?", "ground_truth": "The Weimaraner originates from Germany.", "expected_breed": "WEIMARANER"}
+{"question": "Tell me about the Daschund's country of origin", "ground_truth": "The Dachshund comes from Germany.", "expected_breed": "DACHSHUND"}
+{"question": "How much does a Toyota Corolla cost?", "ground_truth": "This information is not in the dog breed book, so the assistant should say it does not know.", "expected_breed": null}
