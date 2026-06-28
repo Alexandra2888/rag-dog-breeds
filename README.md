@@ -76,11 +76,13 @@ Start at [`docs/README.md`](docs/README.md). Key reads:
 
 - [Architecture](docs/architecture.md) — components and data flow (text + voice)
 - [RAG pipeline](docs/rag-pipeline.md) — chunking, embeddings, hybrid search, generation
+- [Design decisions](docs/design-decisions.md) — **why** it's built this way (interview-ready)
 - [API reference](docs/api-reference.md) — every endpoint
 - [Caching](docs/caching.md) — the shared answer cache
 - [Evaluation](docs/evaluation.md) — running and extending the Ragas suite
 - [Configuration](docs/configuration.md) — environment variables
 - [Development](docs/development.md) — local setup, voice console, troubleshooting
+- [Deployment](docs/deployment.md) — Vercel + Fly.io + managed Postgres
 
 ## License
 
