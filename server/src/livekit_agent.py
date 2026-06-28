@@ -14,7 +14,7 @@ from livekit.agents import (
     WorkerOptions,
     cli,
 )
-from livekit.agents.llm import ChatContext, ChatMessage
+from livekit.agents.llm import ChatContext, ChatMessage, StopResponse
 from livekit.plugins import openai
 
 from src.rag_service import RAGService
@@ -61,19 +61,49 @@ class DogBreedAgent(Agent):
     async def on_user_turn_completed(
         self, turn_ctx: ChatContext, new_message: ChatMessage
     ) -> None:
-        """Retrieve relevant chunks and inject them before the LLM responds."""
+        """Answer the user's turn, serving repeated questions from the cache.
+
+        Fast path: ``rag.query`` returns a cached answer for a repeated question
+        (no embedding, search or LLM) — we speak it directly and raise
+        StopResponse to skip the LLM turn entirely. On a cache miss it generates
+        the answer once (via local Ollama) and stores it, so the *next* identical
+        question is free. Both fast and miss paths share the same cache as the
+        text chat. If anything goes wrong we fall back to injecting context and
+        letting the default LLM pipeline answer, so the user is never left
+        without a reply.
+        """
         query = (new_message.text_content or "").strip()
         if not query:
             return
 
         try:
             rag = get_rag_service()
-            # Vector search is blocking (psycopg2 + Ollama), so run it off the loop.
+            # query() is blocking (psycopg2 + Ollama), so run it off the loop.
+            result = await asyncio.to_thread(rag.query, query, 8, True, None, "voice")
+            answer = result.get("answer")
+            if answer:
+                logger.info(
+                    "Voice answer %s for query: %r",
+                    "CACHE HIT" if result.get("cached") else "generated",
+                    query,
+                )
+                await self.session.say(answer)
+                # We answered — don't let the LLM produce a second reply.
+                raise StopResponse()
+        except StopResponse:
+            raise
+        except Exception as e:
+            logger.error(
+                f"Cached answer path failed, falling back to LLM: {e}", exc_info=True
+            )
+
+        # Fallback: inject retrieved context and let the default LLM reply.
+        try:
+            rag = get_rag_service()
             result = await asyncio.to_thread(rag.search, query, 8)
             chunks = result.get("results", [])
             if not chunks:
                 return
-
             context = "\n\n".join(
                 f"[Page {c.get('metadata', {}).get('page_number', 'N/A')}] {c['content']}"
                 for c in chunks

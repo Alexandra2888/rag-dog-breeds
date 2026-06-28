@@ -255,6 +255,20 @@ async def delete_document(document_id: str):
         )
 
 
+@app.delete("/cache")
+async def clear_cache():
+    """Drop all cached answers (e.g. after changing the knowledge base manually)."""
+    try:
+        removed = database.clear_cache()
+        return {"message": "Answer cache cleared", "removed": removed}
+    except Exception as e:
+        logger.error(f"Error clearing cache: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error clearing cache: {str(e)}"
+        )
+
+
 @app.post("/query", response_model=QueryResponse)
 async def query_rag(request: QueryRequest):
     """
@@ -289,7 +303,8 @@ async def query_rag(request: QueryRequest):
         return QueryResponse(
             query=result["query"],
             chunks=chunk_results,
-            answer=result.get("answer")
+            answer=result.get("answer"),
+            cached=result.get("cached", False),
         )
     
     except Exception as e:

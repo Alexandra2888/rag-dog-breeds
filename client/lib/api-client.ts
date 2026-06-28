@@ -23,6 +23,8 @@ export interface QueryResponse {
   query: string;
   chunks: ChunkResult[];
   answer?: string | null;
+  /** True when this answer was served from the backend cache (no LLM call). */
+  cached?: boolean;
 }
 
 const getBackendUrl = (): string => {

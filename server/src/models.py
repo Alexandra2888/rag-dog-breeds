@@ -61,6 +61,7 @@ class QueryResponse(BaseModel):
     query: str
     chunks: List[ChunkResult]
     answer: Optional[str] = None
+    cached: bool = False
 
 
 class SearchResponse(BaseModel):

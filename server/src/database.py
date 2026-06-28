@@ -119,7 +119,31 @@ class Database:
                     CREATE INDEX IF NOT EXISTS chunks_content_fts_idx
                     ON chunks USING GIN (to_tsvector('english', content));
                 """)
-                
+
+                # Answer cache: a repeated question is served straight from here
+                # instead of re-running embedding + search + the LLM. Shared by
+                # the text (FastAPI) and voice (LiveKit) processes. Keyed by the
+                # normalized question, the answer mode, and top_k (different
+                # top_k can yield a different answer).
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS query_cache (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        query_norm TEXT NOT NULL,
+                        mode VARCHAR(16) NOT NULL DEFAULT 'text',
+                        top_k INTEGER NOT NULL,
+                        query_text TEXT NOT NULL,
+                        answer TEXT NOT NULL,
+                        chunks JSONB NOT NULL,
+                        hit_count INTEGER NOT NULL DEFAULT 0,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                        last_hit_at TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    CREATE UNIQUE INDEX IF NOT EXISTS query_cache_key_idx
+                    ON query_cache(query_norm, mode, top_k);
+                """)
+
                 conn.commit()
                 logger.info("Database tables created/verified")
         except Exception as e:
@@ -243,6 +267,8 @@ class Database:
                 conn.commit()
                 inserted_count = len(values)
                 logger.info(f"Inserted {inserted_count} chunks for document {document_id}")
+                # Knowledge base changed — cached answers may now be stale.
+                self.clear_cache()
                 return inserted_count
         except Exception as e:
             logger.error(f"Error inserting chunks: {e}")
@@ -546,6 +572,8 @@ class Database:
                 conn.commit()
                 if deleted:
                     logger.info(f"Deleted document {document_id}")
+                    # Corpus changed — drop cached answers so they can't go stale.
+                    self.clear_cache()
                 return deleted > 0
         except Exception as e:
             logger.error(f"Error deleting document: {e}")
@@ -591,11 +619,104 @@ class Database:
                         "content": row[1],
                         "metadata": metadata
                     })
-                
+
                 return chunks
         except Exception as e:
             logger.error(f"Error getting document chunks: {e}")
             raise
+        finally:
+            self._return_connection(conn)
+
+    # ------------------------------------------------------------------ #
+    # Answer cache
+    # ------------------------------------------------------------------ #
+
+    def get_cached_answer(
+        self, query_norm: str, mode: str, top_k: int
+    ) -> Optional[Dict[str, Any]]:
+        """Return a cached {answer, chunks} for this question, or None on a miss.
+
+        A hit also bumps hit_count / last_hit_at so cache usage is observable.
+        """
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE query_cache
+                       SET hit_count = hit_count + 1,
+                           last_hit_at = CURRENT_TIMESTAMP
+                     WHERE query_norm = %s AND mode = %s AND top_k = %s
+                     RETURNING answer, chunks;
+                    """,
+                    (query_norm, mode, top_k),
+                )
+                row = cur.fetchone()
+                conn.commit()
+                if not row:
+                    return None
+                chunks = row[1]
+                if isinstance(chunks, str):
+                    chunks = json.loads(chunks)
+                return {"answer": row[0], "chunks": chunks or []}
+        except Exception as e:
+            # A cache failure must never break the request — just treat as a miss.
+            logger.warning(f"Cache lookup failed (treating as miss): {e}")
+            conn.rollback()
+            return None
+        finally:
+            self._return_connection(conn)
+
+    def put_cached_answer(
+        self,
+        query_norm: str,
+        mode: str,
+        top_k: int,
+        query_text: str,
+        answer: str,
+        chunks: List[Dict[str, Any]],
+    ) -> None:
+        """Store (or refresh) the answer for a question. Best-effort."""
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO query_cache
+                        (query_norm, mode, top_k, query_text, answer, chunks)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT (query_norm, mode, top_k) DO UPDATE
+                        SET answer = EXCLUDED.answer,
+                            chunks = EXCLUDED.chunks,
+                            query_text = EXCLUDED.query_text,
+                            created_at = CURRENT_TIMESTAMP,
+                            hit_count = 0,
+                            last_hit_at = NULL;
+                    """,
+                    (query_norm, mode, top_k, query_text, answer, Json(chunks)),
+                )
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Cache store failed (ignored): {e}")
+            conn.rollback()
+        finally:
+            self._return_connection(conn)
+
+    def clear_cache(self) -> int:
+        """Empty the answer cache. Returns the number of entries removed."""
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM query_cache;")
+                removed = cur.rowcount
+                conn.commit()
+                if removed:
+                    logger.info(f"Cleared {removed} cached answer(s)")
+                return removed
+        except Exception as e:
+            logger.warning(f"Cache clear failed (ignored): {e}")
+            conn.rollback()
+            return 0
         finally:
             self._return_connection(conn)
 
