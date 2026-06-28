@@ -16,8 +16,10 @@ RUN pip install --no-cache-dir uv
 # Copy project files
 COPY pyproject.toml ./
 COPY src/ ./src/
+# The knowledge-base PDF(s) must ship in the image so startup auto-ingest works.
+COPY data/ ./data/
 
-# Install Python dependencies with uv
+# Install Python dependencies with uv (runtime deps only; dev deps excluded)
 RUN uv pip install --system -e .
 
 # Expose API port (for FastAPI)

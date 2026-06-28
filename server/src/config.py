@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")
     api_port: int = Field(default=8000, alias="API_PORT")
+    # Comma-separated list of allowed CORS origins. Defaults to "*" for local
+    # dev; set to your frontend origin(s) in production, e.g.
+    # ALLOWED_ORIGINS=https://your-app.vercel.app
+    allowed_origins: str = Field(default="*", alias="ALLOWED_ORIGINS")
     
     # LiveKit
     livekit_url: str = Field(

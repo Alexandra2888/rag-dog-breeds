@@ -1,0 +1,31 @@
+# Fly.io config — LiveKit voice-agent worker.
+# Deploy:  fly deploy -c fly.agent.toml
+# The agent connects OUT to LiveKit Cloud, so it needs no inbound ports.
+
+app = "dog-breed-rag-agent"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Run the agent worker (this matches the image's default CMD; explicit for clarity).
+[processes]
+  app = "python -m src.livekit_agent start"
+
+[env]
+  OLLAMA_BASE_URL = "http://dog-breed-rag-ollama.internal:11434"
+  OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
+  OLLAMA_CHAT_MODEL = "llama3.1:8b"
+
+# Secrets (set with `fly secrets set ... -c fly.agent.toml`):
+#   DATABASE_URL          same DB as the API (shared answer cache + chunks)
+#   LIVEKIT_URL           wss://<project>.livekit.cloud
+#   LIVEKIT_API_KEY
+#   LIVEKIT_API_SECRET
+#   OPENAI_API_KEY        required for speech-to-text + text-to-speech
+
+# No [http_service]: this is a worker. Keep it always running so it can answer:
+#   fly scale count 1 -c fly.agent.toml
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

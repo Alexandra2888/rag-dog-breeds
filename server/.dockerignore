@@ -1,0 +1,23 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Local env / secrets — never bake into the image
+.env
+.env.*
+!.env.example
+
+# Dev-only / not needed at runtime
+evals/
+README.md
+*.md
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

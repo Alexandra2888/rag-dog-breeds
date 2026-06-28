@@ -1,0 +1,46 @@
+# Fly.io config — FastAPI service.
+# Deploy:  fly deploy -c fly.api.toml
+# (Rename the app, pick your region, and set secrets — see docs/deployment.md.)
+
+app = "dog-breed-rag-api"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Run the API (the image's default CMD starts the voice agent instead).
+[processes]
+  app = "uvicorn src.main:app --host 0.0.0.0 --port 8000"
+
+[env]
+  API_PORT = "8000"
+  # Reach the Ollama Fly app over private 6PN networking (no public port).
+  OLLAMA_BASE_URL = "http://dog-breed-rag-ollama.internal:11434"
+  OLLAMA_EMBEDDING_MODEL = "nomic-embed-text"
+  OLLAMA_CHAT_MODEL = "llama3.1:8b"
+  # Lock CORS to your Vercel frontend (comma-separated for multiple).
+  ALLOWED_ORIGINS = "https://your-app.vercel.app"
+
+# Secrets (set with `fly secrets set ... -c fly.api.toml`), NOT in [env]:
+#   DATABASE_URL          postgres+pgvector (Supabase/Neon), e.g. postgresql://...
+#   LIVEKIT_URL           wss://<project>.livekit.cloud
+#   LIVEKIT_API_KEY       (to mint voice tokens)
+#   LIVEKIT_API_SECRET
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  # Keep one warm so startup auto-ingest runs and the first request isn't cold.
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+    hard_limit = 40
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

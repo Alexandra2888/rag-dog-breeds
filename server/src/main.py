@@ -81,11 +81,15 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Add CORS middleware
+# Add CORS middleware. Origins come from ALLOWED_ORIGINS (comma-separated);
+# defaults to "*" for local dev. A wildcard with credentials is invalid per the
+# CORS spec, so credentials are only enabled when origins are explicitly listed.
+_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()] or ["*"]
+_allow_all = _origins == ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
-    allow_credentials=True,
+    allow_origins=_origins,
+    allow_credentials=not _allow_all,
     allow_methods=["*"],
     allow_headers=["*"],
 )

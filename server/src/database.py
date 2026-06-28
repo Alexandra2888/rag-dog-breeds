@@ -53,14 +53,21 @@ class Database:
         self.pool.putconn(conn)
     
     def _ensure_extension(self):
-        """Ensure pgvector extension is enabled."""
+        """Ensure required Postgres extensions are enabled.
+
+        ``vector`` powers similarity search; ``pg_trgm`` powers the fuzzy
+        (typo/STT-tolerant) and breed-label lanes of hybrid search via
+        ``word_similarity``. On a fresh managed Postgres (Supabase/Neon/Fly)
+        neither is enabled by default, so we create both here.
+        """
         # Get connection without registering vector first (extension doesn't exist yet)
         conn = self._get_connection(register_pgvector=False)
         try:
             with conn.cursor() as cur:
                 cur.execute("CREATE EXTENSION IF NOT EXISTS vector;")
+                cur.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm;")
                 conn.commit()
-                logger.info("pgvector extension enabled")
+                logger.info("pgvector + pg_trgm extensions enabled")
             # Now register vector on this connection
             try:
                 register_vector(conn)
