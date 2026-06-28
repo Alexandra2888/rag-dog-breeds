@@ -62,7 +62,14 @@ breed-label retrieval signal below.
 
 ## 3. Embeddings (`embeddings.py`)
 
-Model: `nomic-embed-text` (768-dim). nomic is trained with **asymmetric task
+**Provider is pluggable** via `INFERENCE_PROVIDER`: `ollama` (local dev) or
+`openai` (any OpenAI-compatible API, e.g. Gemini in the free cloud deploy). Both
+yield **768-dim** vectors so the DB schema is unchanged (`gemini-embedding-001` is
+requested at 768 via `INFERENCE_EMBEDDING_DIM`). The `openai` path batches inputs
+and is rate-limited/retried for the free tier (~100 items/min). See
+[design-decisions.md](design-decisions.md#decision-6--pluggable-inference-provider-local-first-free-to-deploy).
+
+Local model: `nomic-embed-text` (768-dim). nomic is trained with **asymmetric task
 prefixes**, so the code prepends:
 
 - `search_document: …` for stored chunks
@@ -111,7 +118,8 @@ names ("Schnouzer", "Daschund", "weimeraner") resolve to rank 1.
 ## 5. Answer generation (`rag_service.py`)
 
 Retrieved chunks are formatted with source/page tags into a context block and
-sent to the Ollama chat model (`llama3.1:8b`). Two prompt styles by `mode`:
+sent to the chat model — local Ollama (`llama3.1:8b`) or the hosted provider
+(`gemini-2.5-flash`) depending on `INFERENCE_PROVIDER`. Two prompt styles by `mode`:
 
 - `text` — a full answer; says so when the answer isn't in the context.
 - `voice` — one or two short, spoken-friendly sentences.

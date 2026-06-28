@@ -3,7 +3,7 @@
 # Set the `sync: false` secrets in the Render dashboard after the first deploy.
 #
 # Free plan notes: the service sleeps after ~15 min idle (cold start ~50s).
-# Re-ingest the book ONCE (locally, pointing DATABASE_URL at Supabase with the
+# Re-ingest the book ONCE (locally, pointing DATABASE_URL at Neon with the
 # Gemini provider) so startup doesn't re-embed on every cold start.
 
 services:
@@ -32,7 +32,7 @@ services:
       # Secrets — set these in the Render dashboard (not committed):
       - key: INFERENCE_API_KEY        # Google AI Studio (Gemini) key
         sync: false
-      - key: DATABASE_URL             # Supabase Postgres (session pooler / direct, :5432)
+      - key: DATABASE_URL             # Neon Postgres connection string
         sync: false
       - key: ALLOWED_ORIGINS          # your Vercel URL, e.g. https://your-app.vercel.app
         sync: false

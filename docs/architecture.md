@@ -8,7 +8,7 @@
 | API | FastAPI (Python 3.11+, `uv`) | 8000 | RAG query/search, ingestion, LiveKit token minting, cache admin |
 | Voice agent | livekit-agents 1.x | — | Real-time spoken Q&A (worker process) |
 | Database | Postgres + pgvector (`pgvector/pgvector:pg16`) | 5433→5432 | Chunks, embeddings, answer cache |
-| LLM + embeddings | Ollama (`llama3.1:8b`, `nomic-embed-text`) | 11434 | Local generation + embeddings |
+| LLM + embeddings | Pluggable: Ollama (local) or any OpenAI-compatible API (Gemini in the free cloud deploy) | 11434 (Ollama) | Switched by `INFERENCE_PROVIDER`; see [deployment.md](deployment.md) |
 | Speech | OpenAI STT (`gpt-4o-transcribe`) + TTS | — | Voice only |
 | Realtime transport | LiveKit server (or LiveKit Cloud) | 7880/7881 | WebRTC media for voice |
 

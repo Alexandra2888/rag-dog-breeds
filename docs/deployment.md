@@ -2,7 +2,7 @@
 
 Three targets:
 
-- **Free cloud (recommended)** — Vercel + Render + Supabase + Gemini (below).
+- **Free cloud (recommended)** — Vercel + Render + Neon + Gemini (below).
 - **Local / self-hosted** — Docker Compose.
 - **Paid cloud** — Fly.io with self-hosted Ollama (for fully-local inference).
 
@@ -13,10 +13,10 @@ dev still uses Ollama (`INFERENCE_PROVIDER=ollama`, the default).
 
 ---
 
-## Free cloud: Vercel + Render + Supabase + Gemini
+## Free cloud: Vercel + Render + Neon + Gemini
 
 ```
-Vercel (Next.js)  ──►  Render (FastAPI, free)  ──►  Supabase Postgres (pgvector)
+Vercel (Next.js)  ──►  Render (FastAPI, free)  ──►  Neon Postgres (pgvector)
                                   │
                                   └──►  Gemini OpenAI-compatible API (LLM + 768-dim embeddings)
 ```
@@ -28,29 +28,34 @@ chat (`gemini-2.5-flash`) and embeddings (`gemini-embedding-001`, requested at
 Free-tier limits to know: embeddings ~**100 items/min** (so the one-time ingest
 is throttled, ~8 min) and a modest chat RPM/day — fine for a demo.
 
-### 2. Supabase database
-Create a free project at <https://supabase.com>. In **Project Settings →
-Database → Connection string**, copy the **Session pooler** URI (port **5432** —
-supports `CREATE EXTENSION`; avoid the Transaction pooler on 6543). `pgvector`
-and `pg_trgm` are created automatically on first connect.
+### 2. Neon database
+Create a free project at <https://neon.tech> and copy the connection string. The
+**pooled** endpoint works (verified — `CREATE EXTENSION` succeeds on it); the
+**direct** host (same string without `-pooler`) also works. It already includes
+`?sslmode=require`. `pgvector` and `pg_trgm` are created automatically on first
+connect.
+> (Supabase also works if you have a free slot — use its **Session pooler** URI,
+> port 5432, not the Transaction pooler on 6543.)
 
-### 3. Ingest the book once (into Supabase, via Gemini)
-Run locally so Render doesn't re-embed on every cold start:
+### 3. Ingest the book once (into Neon, via Gemini)
+Put the prod values in `server/.env.prod` (gitignored) and run locally so Render
+doesn't re-embed on every cold start. Throttled to ~100 embeddings/min, so ~8 min:
 ```bash
 cd server
+# .env.prod contains INFERENCE_PROVIDER=openai, INFERENCE_API_KEY, DATABASE_URL, etc.
 INFERENCE_PROVIDER=openai \
 INFERENCE_API_KEY="<gemini-key>" \
 INFERENCE_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/" \
-DATABASE_URL="<supabase-session-pooler-url>" \
+DATABASE_URL="<neon-connection-url>" \
 uv run python -m src.ingest --force
 ```
 
 ### 4. Backend on Render (free)
 Push to GitHub, then Render → **New + → Blueprint** and pick the repo (uses
 [`render.yaml`](../render.yaml)). Set the `sync: false` secrets in the dashboard:
-`INFERENCE_API_KEY`, `DATABASE_URL`, `ALLOWED_ORIGINS` (your Vercel URL),
-`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Free service sleeps after
-~15 min idle (cold start ~50s).
+`INFERENCE_API_KEY`, `DATABASE_URL` (your Neon URL), `ALLOWED_ORIGINS` (your
+Vercel URL), `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Free service
+sleeps after ~15 min idle (cold start ~50s).
 
 ### 5. Frontend on Vercel
 Import the repo, **root directory = `client/`**, set

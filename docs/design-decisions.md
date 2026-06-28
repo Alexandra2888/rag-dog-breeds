@@ -110,6 +110,37 @@ and treated as a regression guard, not absolute truth.
 `uv` had resolved langchain 1.x, so `import ragas` failed. Fix: pin the langchain
 ecosystem to `<1.0`. Good example of real dependency-resolution debugging.
 
+## Decision 6 — Pluggable inference provider (local-first, free to deploy)
+
+**Problem.** Local Ollama is great for development (free, private, offline), but
+hosting an 8B model 24/7 in the cloud isn't free — and Fly.io (the first target)
+has no free tier. How do you keep the local-first dev story *and* deploy for $0?
+
+**Choice.** A thin provider abstraction (`INFERENCE_PROVIDER`): `ollama` for local
+dev, or `openai` for **any** OpenAI-compatible API in the cloud. The free deploy
+points it at **Google Gemini's** OpenAI-compatible endpoint — one free key serves
+both chat (`gemini-2.5-flash`) and embeddings (`gemini-embedding-001`). Same code,
+switched by env; embeddings requested at **768-dim** so the DB schema is unchanged.
+
+**Free stack.** Vercel (frontend) + Render (FastAPI, free) + Neon (Postgres +
+pgvector, free) + Gemini (LLM + embeddings, free). The expensive part — the model —
+is never self-hosted.
+
+**Tradeoffs / war stories worth telling.**
+- Free-tier model availability shifts: `gemini-2.0-flash` had **zero** free quota
+  and `text-embedding-004` was retired, so I discovered the live model list and
+  switched to `gemini-2.5-flash` / `gemini-embedding-001`.
+- Gemini embeddings are capped at ~**100 items/min** free, and the limit counts
+  *items*, not requests — so batching doesn't dodge it. The bulk ingest is
+  throttled (95/batch + 61s pause, with retry/backoff); query-time embedding (one
+  per question) is nowhere near the limit.
+- Switching embedding models changes the vector space → a one-time re-ingest.
+- Voice can't be fully free (paid STT/TTS + an always-on worker), so the free
+  deploy ships text first; voice's LLM also moved to Gemini.
+
+The Fly.io path is kept in the repo as the documented **paid alternative** for
+anyone who wants fully-local inference (no third-party model API).
+
 ## Things I'd do next (shows awareness, not gaps)
 
 - **Security hardening** for non-local deploys: lock down CORS, add auth
