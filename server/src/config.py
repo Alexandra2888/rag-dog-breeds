@@ -26,6 +26,24 @@ class Settings(BaseSettings):
         alias="OLLAMA_CHAT_MODEL"
     )
     
+    # Inference provider — where the LLM + embeddings run.
+    #   "ollama"  -> local Ollama (default; for local dev)
+    #   "openai"  -> any OpenAI-compatible API (e.g. Google Gemini's free
+    #                endpoint) — used for the free cloud deploy.
+    inference_provider: str = Field(default="ollama", alias="INFERENCE_PROVIDER")
+    # OpenAI-compatible endpoint + key (only used when provider == "openai").
+    # Gemini: https://generativelanguage.googleapis.com/v1beta/openai/
+    inference_base_url: str = Field(default="", alias="INFERENCE_BASE_URL")
+    inference_api_key: str = Field(default="", alias="INFERENCE_API_KEY")
+    # Model names for the "openai" provider (Gemini defaults; both free).
+    # text-embedding-004 is 768-dim, matching the DB schema.
+    inference_chat_model: str = Field(
+        default="gemini-2.0-flash", alias="INFERENCE_CHAT_MODEL"
+    )
+    inference_embedding_model: str = Field(
+        default="text-embedding-004", alias="INFERENCE_EMBEDDING_MODEL"
+    )
+
     # Chunking
     chunk_size: int = Field(default=1000, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=200, alias="CHUNK_OVERLAP")

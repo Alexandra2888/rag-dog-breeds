@@ -12,15 +12,29 @@ class EmbeddingGenerator:
     """Generates embeddings using Ollama."""
     
     def __init__(self, base_url: str = None, model: str = None):
+        self.provider = settings.inference_provider.lower()
+        self.openai_client = None
+        self.client = None
+
+        if self.provider == "openai":
+            # Any OpenAI-compatible embeddings API (e.g. Google Gemini's free
+            # endpoint serving text-embedding-004, 768-dim).
+            from openai import OpenAI
+            self.model = model or settings.inference_embedding_model
+            self.openai_client = OpenAI(
+                base_url=settings.inference_base_url or None,
+                api_key=settings.inference_api_key or "not-needed",
+            )
+            return
+
+        # Default: local Ollama.
         self.base_url = base_url or settings.ollama_base_url
         self.model = model or settings.ollama_embedding_model
-        # Initialize Ollama client
         try:
             # Try to use Client class if available
             self.client = ollama.Client(host=self.base_url)
         except (AttributeError, TypeError):
             # Fallback: use module-level functions
-            self.client = None
             import os
             # Extract host from URL (remove http:// or https://)
             host = self.base_url.replace('http://', '').replace('https://', '')
@@ -54,6 +68,11 @@ class EmbeddingGenerator:
         """
         prompt = self._apply_task_prefix(text, input_type)
         try:
+            if self.provider == "openai":
+                response = self.openai_client.embeddings.create(
+                    model=self.model, input=prompt
+                )
+                return response.data[0].embedding
             if self.client:
                 response = self.client.embeddings(model=self.model, prompt=prompt)
             else:

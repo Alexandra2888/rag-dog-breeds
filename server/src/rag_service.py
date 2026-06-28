@@ -33,15 +33,26 @@ class RAGService:
     ):
         self.embedding_generator = embedding_generator or EmbeddingGenerator()
         self.database = database or Database()
-        self.chat_model = chat_model or settings.ollama_chat_model
-        # Initialize Ollama client
-        try:
-            self.client = ollama.Client(host=settings.ollama_base_url)
-        except (AttributeError, TypeError):
-            self.client = None
-            import os
-            host = settings.ollama_base_url.replace('http://', '').replace('https://', '')
-            os.environ['OLLAMA_HOST'] = host
+        self.provider = settings.inference_provider.lower()
+        self.openai_client = None
+        self.client = None
+
+        if self.provider == "openai":
+            # Any OpenAI-compatible chat API (e.g. Google Gemini's free endpoint).
+            from openai import OpenAI
+            self.chat_model = chat_model or settings.inference_chat_model
+            self.openai_client = OpenAI(
+                base_url=settings.inference_base_url or None,
+                api_key=settings.inference_api_key or "not-needed",
+            )
+        else:
+            self.chat_model = chat_model or settings.ollama_chat_model
+            try:
+                self.client = ollama.Client(host=settings.ollama_base_url)
+            except (AttributeError, TypeError):
+                import os
+                host = settings.ollama_base_url.replace('http://', '').replace('https://', '')
+                os.environ['OLLAMA_HOST'] = host
     
     def query(
         self,
@@ -161,6 +172,12 @@ Question: {query}
 Answer:"""
 
         try:
+            if self.provider == "openai":
+                response = self.openai_client.chat.completions.create(
+                    model=self.chat_model,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.choices[0].message.content
             if self.client:
                 response = self.client.generate(model=self.chat_model, prompt=prompt)
             else:

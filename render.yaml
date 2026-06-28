@@ -1,0 +1,42 @@
+# Render blueprint — free FastAPI web service for the RAG API.
+# Deploy: push to GitHub, then in Render → "New +" → "Blueprint" → pick this repo.
+# Set the `sync: false` secrets in the Render dashboard after the first deploy.
+#
+# Free plan notes: the service sleeps after ~15 min idle (cold start ~50s).
+# Re-ingest the book ONCE (locally, pointing DATABASE_URL at Supabase with the
+# Gemini provider) so startup doesn't re-embed on every cold start.
+
+services:
+  - type: web
+    name: dog-breed-rag-api
+    runtime: docker
+    repo: https://github.com/Alexandra2888/rag-dog-breeds
+    dockerfilePath: ./server/Dockerfile
+    dockerContext: ./server
+    plan: free
+    region: frankfurt
+    healthCheckPath: /health
+    # Render injects $PORT; the image default CMD runs the voice agent, so override.
+    dockerCommand: uvicorn src.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: INFERENCE_PROVIDER
+        value: openai
+      - key: INFERENCE_BASE_URL
+        value: https://generativelanguage.googleapis.com/v1beta/openai/
+      - key: INFERENCE_CHAT_MODEL
+        value: gemini-2.0-flash
+      - key: INFERENCE_EMBEDDING_MODEL
+        value: text-embedding-004
+      # Secrets — set these in the Render dashboard (not committed):
+      - key: INFERENCE_API_KEY        # Google AI Studio (Gemini) key
+        sync: false
+      - key: DATABASE_URL             # Supabase Postgres (session pooler / direct, :5432)
+        sync: false
+      - key: ALLOWED_ORIGINS          # your Vercel URL, e.g. https://your-app.vercel.app
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false

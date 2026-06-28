@@ -1,14 +1,73 @@
 # Deployment
 
-Two supported targets:
+Three targets:
 
-- **Local / self-hosted** — Docker Compose (below).
-- **Cloud** — **Frontend on Vercel**, **Backend on Fly.io** (Option A: Ollama on
-  Fly), **Postgres on Supabase/Neon**, **voice via LiveKit Cloud + OpenAI**.
+- **Free cloud (recommended)** — Vercel + Render + Supabase + Gemini (below).
+- **Local / self-hosted** — Docker Compose.
+- **Paid cloud** — Fly.io with self-hosted Ollama (for fully-local inference).
+
+The key idea: **don't self-host the 8B model** (that's the expensive part). Set
+`INFERENCE_PROVIDER=openai` and point at a free OpenAI-compatible API (Google
+Gemini), so the backend is a lightweight web service that fits free tiers. Local
+dev still uses Ollama (`INFERENCE_PROVIDER=ollama`, the default).
 
 ---
 
-## Cloud: Vercel (frontend) + Fly.io (backend)
+## Free cloud: Vercel + Render + Supabase + Gemini
+
+```
+Vercel (Next.js)  ──►  Render (FastAPI, free)  ──►  Supabase Postgres (pgvector)
+                                  │
+                                  └──►  Gemini OpenAI-compatible API (LLM + 768-dim embeddings)
+```
+
+### 1. Gemini key
+Create a free key at <https://aistudio.google.com/apikey>. One key does both
+chat (`gemini-2.0-flash`) and embeddings (`text-embedding-004`, 768-dim → matches
+the DB schema, no migration).
+
+### 2. Supabase database
+Create a free project at <https://supabase.com>. In **Project Settings →
+Database → Connection string**, copy the **Session pooler** URI (port **5432** —
+supports `CREATE EXTENSION`; avoid the Transaction pooler on 6543). `pgvector`
+and `pg_trgm` are created automatically on first connect.
+
+### 3. Ingest the book once (into Supabase, via Gemini)
+Run locally so Render doesn't re-embed on every cold start:
+```bash
+cd server
+INFERENCE_PROVIDER=openai \
+INFERENCE_API_KEY="<gemini-key>" \
+INFERENCE_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/" \
+DATABASE_URL="<supabase-session-pooler-url>" \
+uv run python -m src.ingest --force
+```
+
+### 4. Backend on Render (free)
+Push to GitHub, then Render → **New + → Blueprint** and pick the repo (uses
+[`render.yaml`](../render.yaml)). Set the `sync: false` secrets in the dashboard:
+`INFERENCE_API_KEY`, `DATABASE_URL`, `ALLOWED_ORIGINS` (your Vercel URL),
+`LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Free service sleeps after
+~15 min idle (cold start ~50s).
+
+### 5. Frontend on Vercel
+Import the repo, **root directory = `client/`**, set
+`NEXT_PUBLIC_RAG_API_URL=https://<your-render-app>.onrender.com`, deploy.
+
+### Voice (near-free, not 100%)
+Voice's LLM now uses Gemini too, but it still needs: a LiveKit Cloud project
+(free tier), **paid** STT/TTS (OpenAI, or Groq Whisper for cheaper STT), and an
+**always-on agent worker** — Render's free tier only runs (sleeping) web
+services, so the worker needs a small paid host (Render background worker ~$7/mo)
+or a free-with-idle-sleep host (Hugging Face Space). Deploy text first; add voice
+when you've picked a worker host.
+
+---
+
+## Paid cloud: Vercel + Fly.io (self-hosted Ollama)
+
+Use this only if you want inference to stay fully local (no third-party model
+API). It requires a Fly GPU/CPU machine for Ollama — not free.
 
 ### Topology
 

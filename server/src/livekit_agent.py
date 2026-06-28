@@ -131,8 +131,21 @@ async def entrypoint(ctx: JobContext) -> None:
             "Set it in your environment or .env file."
         )
 
-    # Ollama exposes an OpenAI-compatible endpoint at /v1 for the LLM.
-    ollama_v1_url = settings.ollama_base_url.rstrip("/") + "/v1"
+    # LLM for the fallback path. Most answers come from the cached
+    # RAGService.query (see on_user_turn_completed); this is only used if that
+    # path fails. Use the configured provider: a hosted OpenAI-compatible API
+    # (e.g. Gemini) in the cloud, or local Ollama's /v1 endpoint in dev.
+    if settings.inference_provider.lower() == "openai":
+        fallback_llm = openai.LLM(
+            model=settings.inference_chat_model,
+            base_url=settings.inference_base_url or None,
+            api_key=settings.inference_api_key or None,
+        )
+    else:
+        fallback_llm = openai.LLM.with_ollama(
+            model=settings.ollama_chat_model,
+            base_url=settings.ollama_base_url.rstrip("/") + "/v1",
+        )
 
     # OpenAI STT/TTS read OPENAI_API_KEY from the environment (loaded from .env
     # in main()). Pass it explicitly only when present so the plugin's own
@@ -157,11 +170,8 @@ async def entrypoint(ctx: JobContext) -> None:
             prompt=stt_prompt,
             **openai_kwargs,
         ),
-        # LLM served locally by Ollama (OpenAI-compatible endpoint).
-        llm=openai.LLM.with_ollama(
-            model=settings.ollama_chat_model,
-            base_url=ollama_v1_url,
-        ),
+        # LLM via the configured provider (Gemini in cloud / Ollama in dev).
+        llm=fallback_llm,
         # Text-to-speech via OpenAI.
         tts=openai.TTS(**openai_kwargs),
         # VAD: AgentSession uses the bundled Silero VAD by default.
