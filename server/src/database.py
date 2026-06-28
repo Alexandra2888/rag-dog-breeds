@@ -318,6 +318,11 @@ class Database:
                 long_words = [w.lower() for w in raw_words if len(w) >= 5]
                 if long_words:
                     fuzzy_terms = [max(long_words, key=len)]
+        # Join the candidate tokens into one phrase. Matching the whole breed
+        # name ("border terrier") discriminates far better than matching tokens
+        # independently — the bare token "terrier" scores identically against
+        # every terrier breed, so the specific one would be lost among siblings.
+        fuzzy = " ".join(fuzzy_terms)
 
         conn = self._get_connection()
         try:
@@ -372,14 +377,11 @@ class Database:
                             -- no rows, so this CTE is skipped).
                             SELECT c.id,
                                    ROW_NUMBER() OVER (
-                                       ORDER BY sim.ws DESC
+                                       ORDER BY word_similarity(%(fuzzy)s, c.content) DESC
                                    ) AS rnk
                             FROM chunks c
-                            CROSS JOIN LATERAL (
-                                SELECT max(word_similarity(t, c.content)) AS ws
-                                FROM unnest(%(fuzzy)s::text[]) AS t
-                            ) sim
-                            WHERE sim.ws > 0.3
+                            WHERE %(fuzzy)s <> ''
+                                  AND word_similarity(%(fuzzy)s, c.content) > 0.3
                                   {doc_trgm}
                             LIMIT %(pool)s
                         ),
@@ -391,16 +393,14 @@ class Database:
                             -- ("schnouzer" -> "SCHNAUZER") still bind.
                             SELECT c.id,
                                    ROW_NUMBER() OVER (
-                                       ORDER BY nm.sim DESC
+                                       ORDER BY word_similarity(
+                                           %(fuzzy)s, lower(c.metadata->>'breed')) DESC
                                    ) AS rnk
                             FROM chunks c
-                            CROSS JOIN LATERAL (
-                                SELECT max(word_similarity(
-                                           t, lower(c.metadata->>'breed'))) AS sim
-                                FROM unnest(%(fuzzy)s::text[]) AS t
-                            ) nm
                             WHERE c.metadata ? 'breed'
-                                  AND nm.sim > 0.35
+                                  AND %(fuzzy)s <> ''
+                                  AND word_similarity(
+                                      %(fuzzy)s, lower(c.metadata->>'breed')) > 0.35
                                   {doc_brd}
                             LIMIT %(pool)s
                         ),
@@ -427,7 +427,7 @@ class Database:
                     cur.execute(query, {
                         "qvec": query_embedding,
                         "qtext": query_text,
-                        "fuzzy": fuzzy_terms,
+                        "fuzzy": fuzzy,
                         "doc": document_id,
                         "pool": pool,
                         "k": rrf_k,
