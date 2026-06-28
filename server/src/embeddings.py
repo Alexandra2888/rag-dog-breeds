@@ -21,9 +21,13 @@ class EmbeddingGenerator:
             # endpoint serving text-embedding-004, 768-dim).
             from openai import OpenAI
             self.model = model or settings.inference_embedding_model
+            # Allow a separate embeddings provider (e.g. Jina) distinct from the
+            # chat provider; fall back to the shared INFERENCE_* settings.
+            base = settings.inference_embedding_base_url or settings.inference_base_url
+            key = settings.inference_embedding_api_key or settings.inference_api_key
             self.openai_client = OpenAI(
-                base_url=settings.inference_base_url or None,
-                api_key=settings.inference_api_key or "not-needed",
+                base_url=base or None,
+                api_key=key or "not-needed",
             )
             return
 
@@ -122,11 +126,11 @@ class EmbeddingGenerator:
         logger.info(f"Generated {len(embeddings)} embeddings")
         return embeddings
 
-    # Free Gemini embedding tier allows ~100 items/minute. Stay well under it
-    # (~70/min) so a one-time bulk ingest doesn't trip the rate limit even with
-    # timing drift / occasional retries.
-    OPENAI_EMBED_BATCH = 50
-    OPENAI_EMBED_PAUSE = 43  # seconds between batches
+    # Batch size + pause between batches for the OpenAI-compatible embedding API.
+    # Tuned for Jina's generous free tier; the retry/backoff below absorbs any
+    # rate-limit hiccups, so this just keeps throughput reasonable.
+    OPENAI_EMBED_BATCH = 100
+    OPENAI_EMBED_PAUSE = 4  # seconds between batches
 
     def _generate_embeddings_openai(self, texts: List[str]) -> List[List[float]]:
         """Batch-embed via an OpenAI-compatible API, rate-limited with retry/backoff."""

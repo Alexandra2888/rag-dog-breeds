@@ -25,10 +25,15 @@ services:
         value: https://generativelanguage.googleapis.com/v1beta/openai/
       - key: INFERENCE_CHAT_MODEL
         value: gemini-2.5-flash
+      # Embeddings via Jina (separate provider; generous free tier, 768-dim).
+      - key: INFERENCE_EMBEDDING_BASE_URL
+        value: https://api.jina.ai/v1
       - key: INFERENCE_EMBEDDING_MODEL
-        value: gemini-embedding-001
+        value: jina-embeddings-v2-base-en
       - key: INFERENCE_EMBEDDING_DIM
-        value: "768"
+        value: "0"
+      - key: INFERENCE_EMBEDDING_API_KEY   # Jina key (free)
+        sync: false
       # Secrets — set these in the Render dashboard (not committed):
       - key: INFERENCE_API_KEY        # Google AI Studio (Gemini) key
         sync: false

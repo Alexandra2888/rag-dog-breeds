@@ -45,8 +45,13 @@ class Settings(BaseSettings):
     )
     # Output dimension for the "openai" embedding provider. gemini-embedding-001
     # defaults to 3072 but supports 768 to match the DB schema (vector(768)).
-    # Set 0 to omit the param (for providers with a fixed dimension).
+    # Set 0 to omit the param (for providers with a fixed dimension, e.g. Jina v2).
     inference_embedding_dim: int = Field(default=768, alias="INFERENCE_EMBEDDING_DIM")
+    # Optional: use a SEPARATE provider/key for embeddings (e.g. Jina — generous
+    # free tier) while chat stays on INFERENCE_* (e.g. Gemini). Falls back to the
+    # INFERENCE_BASE_URL / INFERENCE_API_KEY values when unset.
+    inference_embedding_base_url: str = Field(default="", alias="INFERENCE_EMBEDDING_BASE_URL")
+    inference_embedding_api_key: str = Field(default="", alias="INFERENCE_EMBEDDING_API_KEY")
 
     # Chunking
     chunk_size: int = Field(default=1000, alias="CHUNK_SIZE")
