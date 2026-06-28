@@ -44,4 +44,6 @@ primary_region = "fra"          # match your LiveKit Cloud region (Germany) for 
 # auto-stop — keep exactly one running with `fly scale count 1`.
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "512mb"   # if it OOMs on Silero VAD load, bump: fly scale memory 1024
+  # LiveKit prewarms a separate inference process (Silero VAD / turn detection),
+  # so the worker + that subprocess need ~1-2 GB. 512 MB OOM-loops.
+  memory = "2048mb"
