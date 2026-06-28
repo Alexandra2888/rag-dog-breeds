@@ -122,10 +122,11 @@ class EmbeddingGenerator:
         logger.info(f"Generated {len(embeddings)} embeddings")
         return embeddings
 
-    # Free Gemini embedding tier allows ~100 items/minute. Stay just under it and
-    # pace batches so a one-time bulk ingest doesn't trip the rate limit.
-    OPENAI_EMBED_BATCH = 95
-    OPENAI_EMBED_PAUSE = 61  # seconds between batches
+    # Free Gemini embedding tier allows ~100 items/minute. Stay well under it
+    # (~70/min) so a one-time bulk ingest doesn't trip the rate limit even with
+    # timing drift / occasional retries.
+    OPENAI_EMBED_BATCH = 50
+    OPENAI_EMBED_PAUSE = 43  # seconds between batches
 
     def _generate_embeddings_openai(self, texts: List[str]) -> List[List[float]]:
         """Batch-embed via an OpenAI-compatible API, rate-limited with retry/backoff."""
@@ -142,7 +143,7 @@ class EmbeddingGenerator:
             kwargs = {"model": self.model, "input": batch}
             if dims:
                 kwargs["dimensions"] = dims
-            for attempt in range(6):
+            for attempt in range(10):
                 try:
                     resp = self.openai_client.embeddings.create(**kwargs)
                     # Gemini returns items in input order (index is unset), so
@@ -150,12 +151,13 @@ class EmbeddingGenerator:
                     embeddings.extend(d.embedding for d in resp.data)
                     break
                 except Exception as e:
-                    if attempt == 5:
+                    if attempt == 9:
                         logger.error(f"Embedding batch failed after retries: {e}")
                         raise
-                    # Honor rate-limit backoff (longer wait on 429).
+                    # Honor rate-limit backoff: wait a full window on 429 so the
+                    # per-minute quota fully resets before retrying.
                     msg = str(e)
-                    wait = 61 if ("429" in msg or "RESOURCE_EXHAUSTED" in msg) else 2 ** attempt
+                    wait = 65 if ("429" in msg or "RESOURCE_EXHAUSTED" in msg) else 2 ** attempt
                     logger.warning(f"Embedding batch error; retrying in {wait}s")
                     time.sleep(wait)
             logger.info(f"Embedded {min(i + batch_size, total)}/{total}")

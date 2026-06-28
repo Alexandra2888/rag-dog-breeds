@@ -25,7 +25,8 @@ RUN uv pip install --system -e .
 # Expose API port (for FastAPI)
 EXPOSE 8000
 
-# Default to the LiveKit voice-agent worker (compose / LiveKit Cloud may override).
-# For the FastAPI service, override with: uvicorn src.main:app --host 0.0.0.0 --port 8000
-CMD ["python", "-m", "src.livekit_agent", "start"]
+# Default to the FastAPI API (the primary service). Respects $PORT (Render) and
+# falls back to 8000 locally. The voice agent overrides this command
+# (docker-compose `livekit-agent`, fly.toml `agent` process).
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
