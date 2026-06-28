@@ -17,16 +17,20 @@ dev still uses Ollama (`INFERENCE_PROVIDER=ollama`, the default).
 
 ```
 Vercel (Next.js)  ──►  Render (FastAPI, free)  ──►  Neon Postgres (pgvector)
-                                  │
-                                  └──►  Gemini OpenAI-compatible API (LLM + 768-dim embeddings)
+                                  ├──►  Gemini  (chat — gemini-2.5-flash)
+                                  └──►  Jina    (embeddings — 768-dim)
 ```
 
-### 1. Gemini key
-Create a free key at <https://aistudio.google.com/apikey>. One key does both
-chat (`gemini-2.5-flash`) and embeddings (`gemini-embedding-001`, requested at
-**768-dim** via the `dimensions` param to match the DB schema — no migration).
-Free-tier limits to know: embeddings ~**100 items/min** (so the one-time ingest
-is throttled, ~8 min) and a modest chat RPM/day — fine for a demo.
+### 1. API keys (two free keys)
+- **Gemini** (chat) — <https://aistudio.google.com/apikey>. Model `gemini-2.5-flash`.
+- **Jina** (embeddings) — <https://jina.ai/embeddings>. Model
+  `jina-embeddings-v2-base-en` (fixed **768-dim**, matches the DB schema).
+
+**Why two providers:** Gemini's free *embedding* tier is capped at **1000/day** —
+too tight for a 768-chunk ingest plus live query traffic. Jina's free tier is far
+more generous, so embeddings run on Jina while chat stays on Gemini. The split is
+config-driven: `INFERENCE_*` for chat, `INFERENCE_EMBEDDING_*` for embeddings
+(the latter falls back to the former if unset).
 
 ### 2. Neon database
 Create a free project at <https://neon.tech> and copy the connection string. The
@@ -37,15 +41,18 @@ connect.
 > (Supabase also works if you have a free slot — use its **Session pooler** URI,
 > port 5432, not the Transaction pooler on 6543.)
 
-### 3. Ingest the book once (into Neon, via Gemini)
+### 3. Ingest the book once (into Neon)
 Put the prod values in `server/.env.prod` (gitignored) and run locally so Render
-doesn't re-embed on every cold start. Throttled to ~100 embeddings/min, so ~8 min:
+doesn't re-embed on every cold start. With Jina this takes ~1 min for ~745 chunks:
 ```bash
 cd server
-# .env.prod contains INFERENCE_PROVIDER=openai, INFERENCE_API_KEY, DATABASE_URL, etc.
 INFERENCE_PROVIDER=openai \
 INFERENCE_API_KEY="<gemini-key>" \
 INFERENCE_BASE_URL="https://generativelanguage.googleapis.com/v1beta/openai/" \
+INFERENCE_EMBEDDING_BASE_URL="https://api.jina.ai/v1" \
+INFERENCE_EMBEDDING_API_KEY="<jina-key>" \
+INFERENCE_EMBEDDING_MODEL="jina-embeddings-v2-base-en" \
+INFERENCE_EMBEDDING_DIM=0 \
 DATABASE_URL="<neon-connection-url>" \
 uv run python -m src.ingest --force
 ```
@@ -53,9 +60,10 @@ uv run python -m src.ingest --force
 ### 4. Backend on Render (free)
 Push to GitHub, then Render → **New + → Blueprint** and pick the repo (uses
 [`render.yaml`](../render.yaml)). Set the `sync: false` secrets in the dashboard:
-`INFERENCE_API_KEY`, `DATABASE_URL` (your Neon URL), `ALLOWED_ORIGINS` (your
-Vercel URL), `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`. Free service
-sleeps after ~15 min idle (cold start ~50s).
+`INFERENCE_API_KEY` (Gemini), `INFERENCE_EMBEDDING_API_KEY` (Jina), `DATABASE_URL`
+(Neon), `ALLOWED_ORIGINS` (your Vercel URL), and optionally `LIVEKIT_URL`,
+`LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (voice). Free service sleeps after ~15 min
+idle (cold start ~50s).
 
 ### 5. Frontend on Vercel
 Import the repo, **root directory = `client/`**, set

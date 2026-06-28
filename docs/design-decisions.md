@@ -117,24 +117,27 @@ hosting an 8B model 24/7 in the cloud isn't free — and Fly.io (the first targe
 has no free tier. How do you keep the local-first dev story *and* deploy for $0?
 
 **Choice.** A thin provider abstraction (`INFERENCE_PROVIDER`): `ollama` for local
-dev, or `openai` for **any** OpenAI-compatible API in the cloud. The free deploy
-points it at **Google Gemini's** OpenAI-compatible endpoint — one free key serves
-both chat (`gemini-2.5-flash`) and embeddings (`gemini-embedding-001`). Same code,
-switched by env; embeddings requested at **768-dim** so the DB schema is unchanged.
+dev, or `openai` for **any** OpenAI-compatible API in the cloud — and chat vs
+embeddings are independently configurable (`INFERENCE_*` vs `INFERENCE_EMBEDDING_*`).
+The free deploy uses **Gemini for chat** (`gemini-2.5-flash`) and **Jina for
+embeddings** (`jina-embeddings-v2-base-en`, 768-dim). Same code, switched by env;
+embeddings stay 768-dim so the DB schema is unchanged.
 
 **Free stack.** Vercel (frontend) + Render (FastAPI, free) + Neon (Postgres +
-pgvector, free) + Gemini (LLM + embeddings, free). The expensive part — the model —
-is never self-hosted.
+pgvector, free) + Gemini (chat) + Jina (embeddings). The expensive part — the
+model — is never self-hosted.
 
 **Tradeoffs / war stories worth telling.**
 - Free-tier model availability shifts: `gemini-2.0-flash` had **zero** free quota
   and `text-embedding-004` was retired, so I discovered the live model list and
   switched to `gemini-2.5-flash` / `gemini-embedding-001`.
-- Gemini embeddings are capped at ~**100 items/min** free, and the limit counts
-  *items*, not requests — so batching doesn't dodge it. The bulk ingest is
-  throttled (95/batch + 61s pause, with retry/backoff); query-time embedding (one
-  per question) is nowhere near the limit.
-- Switching embedding models changes the vector space → a one-time re-ingest.
+- Gemini's free *embedding* tier also has a **1000/day** cap — too tight for a
+  768-chunk ingest plus live query traffic. So embeddings moved to **Jina**
+  (generous free tier, 768-dim), while chat stayed on Gemini — which is exactly
+  why the provider split (chat vs embeddings) exists. Good example of letting a
+  real constraint drive an abstraction boundary.
+- Switching embedding models changes the vector space → a one-time re-ingest
+  (~745 chunks in ~1 min via Jina).
 - Voice can't be fully free (paid STT/TTS + an always-on worker), so the free
   deploy ships text first; voice's LLM also moved to Gemini.
 
