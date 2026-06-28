@@ -38,11 +38,18 @@ def get_rag_service() -> RAGService:
 
 
 SYSTEM_PROMPT = """You are a friendly voice assistant that answers questions about dog breeds.
-You have a knowledge base drawn from a comprehensive dog breed book; relevant
-excerpts are provided to you before each answer. Use them to answer accurately.
-Keep replies concise and conversational since they will be spoken aloud.
-If the provided context does not contain the answer, say you don't know rather
-than inventing information."""
+Before each user question you are given relevant excerpts from a dog breed book.
+
+Follow these rules:
+- Answer the SPECIFIC question the user asked. If they ask about the country or
+  origin, lead with the country. If they ask about size, lead with the size. Do
+  not pad the reply with appearance or temperament details they did not ask for.
+- Base every fact on the provided excerpts. When relevant, look for labelled
+  fields such as "Origin", "Weight range", "Height range", and "Life span".
+- Keep replies short and conversational — one or two sentences — since they are
+  spoken aloud.
+- If the excerpts do not contain the answer, say you don't know rather than
+  guessing or inventing information."""
 
 
 class DogBreedAgent(Agent):
@@ -62,7 +69,7 @@ class DogBreedAgent(Agent):
         try:
             rag = get_rag_service()
             # Vector search is blocking (psycopg2 + Ollama), so run it off the loop.
-            result = await asyncio.to_thread(rag.search, query, 5)
+            result = await asyncio.to_thread(rag.search, query, 8)
             chunks = result.get("results", [])
             if not chunks:
                 return
@@ -102,9 +109,24 @@ async def entrypoint(ctx: JobContext) -> None:
     # env-var fallback still works if it isn't.
     openai_kwargs = {"api_key": settings.openai_api_key} if settings.openai_api_key else {}
 
+    # Bias transcription toward dog-breed vocabulary so proper nouns like
+    # "Schnauzer" or "Weimaraner" aren't garbled into nonsense words.
+    stt_prompt = (
+        "The speaker is asking about dog breeds. Transcribe breed names "
+        "accurately, e.g. Schnauzer, Weimaraner, Dachshund, Rottweiler, "
+        "Golden Retriever, Labrador Retriever, Siberian Husky, German Shepherd, "
+        "Border Collie, Cavalier King Charles Spaniel, Bichon Frise, Vizsla."
+    )
+
     session = AgentSession(
-        # Speech-to-text via OpenAI (Whisper / gpt-4o transcription).
-        stt=openai.STT(**openai_kwargs),
+        # Speech-to-text via OpenAI. gpt-4o-transcribe (full, not -mini) is more
+        # accurate on breed names; pinned to English with a domain prompt.
+        stt=openai.STT(
+            model="gpt-4o-transcribe",
+            language="en",
+            prompt=stt_prompt,
+            **openai_kwargs,
+        ),
         # LLM served locally by Ollama (OpenAI-compatible endpoint).
         llm=openai.LLM.with_ollama(
             model=settings.ollama_chat_model,

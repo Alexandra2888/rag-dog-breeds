@@ -1,5 +1,6 @@
 """Database operations with PostgreSQL and pgvector."""
 import logging
+import re
 import uuid
 import json
 from typing import List, Dict, Any, Optional
@@ -286,6 +287,17 @@ class Database:
         rrf_k = 10
         w_vec = 1.0
         w_fts = 2.0
+        w_trgm = 1.2  # Fuzzy (typo-tolerant) keyword signal.
+
+        # Trigram fuzzy term: the longest word in the query (usually the breed
+        # name) so misspellings like "schnzautzer" still match "schnauzer".
+        # Exact full-text already handles correctly-spelled names; this is the
+        # fallback that catches typos and STT errors.
+        fuzzy_term = ""
+        if query_text:
+            words = re.findall(r"[a-z]{5,}", query_text.lower())
+            if words:
+                fuzzy_term = max(words, key=len)
 
         conn = self._get_connection()
         try:
@@ -293,6 +305,7 @@ class Database:
                 if query_text:
                     doc_vec = "WHERE c.document_id = %(doc)s" if document_id else ""
                     doc_fts = "AND c.document_id = %(doc)s" if document_id else ""
+                    doc_trgm = "AND c.document_id = %(doc)s" if document_id else ""
                     thresh_sql = (
                         "WHERE (1 - (c.embedding <=> %(qvec)s::vector)) >= %(thresh)s"
                         if threshold is not None else ""
@@ -330,12 +343,27 @@ class Database:
                                   {doc_fts}
                             LIMIT %(pool)s
                         ),
+                        trgm AS (
+                            -- Fuzzy fallback: trigram word-similarity catches
+                            -- misspelled / mis-transcribed breed names.
+                            SELECT c.id,
+                                   ROW_NUMBER() OVER (
+                                       ORDER BY word_similarity(%(fuzzy)s, c.content) DESC
+                                   ) AS rnk
+                            FROM chunks c
+                            WHERE %(fuzzy)s <> ''
+                                  AND word_similarity(%(fuzzy)s, c.content) > 0.3
+                                  {doc_trgm}
+                            LIMIT %(pool)s
+                        ),
                         fused AS (
-                            SELECT COALESCE(v.id, f.id) AS id,
+                            SELECT COALESCE(v.id, f.id, t.id) AS id,
                                    COALESCE(%(wv)s / (%(k)s + v.rnk), 0)
-                                 + COALESCE(%(wf)s / (%(k)s + f.rnk), 0) AS rrf
+                                 + COALESCE(%(wf)s / (%(k)s + f.rnk), 0)
+                                 + COALESCE(%(wt)s / (%(k)s + t.rnk), 0) AS rrf
                             FROM vec v
                             FULL OUTER JOIN fts f ON v.id = f.id
+                            FULL OUTER JOIN trgm t ON COALESCE(v.id, f.id) = t.id
                         )
                         SELECT c.id, c.content, c.metadata,
                                1 - (c.embedding <=> %(qvec)s::vector) AS similarity
@@ -348,11 +376,13 @@ class Database:
                     cur.execute(query, {
                         "qvec": query_embedding,
                         "qtext": query_text,
+                        "fuzzy": fuzzy_term,
                         "doc": document_id,
                         "pool": pool,
                         "k": rrf_k,
                         "wv": w_vec,
                         "wf": w_fts,
+                        "wt": w_trgm,
                         "topk": top_k,
                         "thresh": threshold,
                     })
