@@ -4,6 +4,7 @@ import re
 import uuid
 import json
 from typing import List, Dict, Any, Optional
+import psycopg2
 from psycopg2.extras import execute_values, Json
 from psycopg2.pool import ThreadedConnectionPool
 from pgvector.psycopg2 import register_vector
@@ -39,15 +40,40 @@ class Database:
             raise
     
     def _get_connection(self, register_pgvector=True):
-        """Get a connection from the pool and optionally register pgvector."""
-        conn = self.pool.getconn()
-        if register_pgvector:
+        """Get a *live* connection from the pool, optionally registering pgvector.
+
+        Serverless Postgres (Neon) suspends its compute when idle and drops the
+        connections the pool is holding. A stale connection then fails with
+        "connection already closed" / "server closed the connection unexpectedly".
+        So we validate each connection with a cheap `SELECT 1` on checkout and
+        recycle dead ones — a fresh connection also wakes a suspended Neon compute.
+        """
+        last_err = None
+        for _ in range(self.pool.maxconn + 1):
+            conn = self.pool.getconn()
             try:
-                register_vector(conn)
-            except Exception:
-                pass
-        return conn
-    
+                if conn.closed:
+                    raise psycopg2.OperationalError("connection is closed")
+                with conn.cursor() as cur:
+                    cur.execute("SELECT 1")
+                conn.rollback()  # clear the implicit transaction from the ping
+            except Exception as e:
+                last_err = e
+                try:
+                    self.pool.putconn(conn, close=True)  # discard the dead one
+                except Exception:
+                    pass
+                continue
+            if register_pgvector:
+                try:
+                    register_vector(conn)
+                except Exception:
+                    pass
+            return conn
+        raise psycopg2.OperationalError(
+            f"could not obtain a live database connection: {last_err}"
+        )
+
     def _return_connection(self, conn):
         """Return a connection to the pool."""
         self.pool.putconn(conn)
