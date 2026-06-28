@@ -1,6 +1,6 @@
 """Pydantic models for API requests and responses."""
 from typing import List, Optional, Dict, Any
-from pydantic import BaseModel, Field, Field
+from pydantic import BaseModel, Field
 
 class IngestRequest(BaseModel):
     """Request model for PDF ingestion."""
@@ -16,16 +16,16 @@ class IngestResponse(BaseModel):
 
 class QueryRequest(BaseModel):
     """Request model for RAG queries."""
-    query: str = Field(..., description="The user's query")
-    top_k: int = Field(default=5, description="Number of relevant chunks to retrieve")
+    query: str = Field(..., min_length=1, description="The user's query")
+    top_k: int = Field(default=5, ge=1, le=100, description="Number of relevant chunks to retrieve")
     include_metadata: bool = Field(default=True, description="Include metadata in response")
 
 
 class SearchRequest(BaseModel):
     """Request model for vector similarity search."""
-    query: str = Field(..., description="The search query")
-    top_k: int = Field(default=5, description="Number of results to return")
-    threshold: Optional[float] = Field(default=None, description="Minimum similarity threshold")
+    query: str = Field(..., min_length=1, description="The search query")
+    top_k: int = Field(default=5, ge=1, le=100, description="Number of results to return")
+    threshold: Optional[float] = Field(default=None, ge=0.0, le=1.0, description="Minimum similarity threshold")
 
 
 class ChunkResult(BaseModel):

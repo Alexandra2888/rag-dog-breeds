@@ -15,6 +15,11 @@ class PDFProcessor:
     # Drop chunks shorter than this (kills 1-char fragments from page edges).
     MIN_CHUNK_CHARS = 80
 
+    # A single breed entry never legitimately runs longer than this. Content
+    # beyond it (between the heading and the next one) is treated as non-breed
+    # overflow rather than attributed to the breed. ~5 chunks' worth.
+    MAX_ENTRY_CHARS = 5000
+
     def __init__(self, chunk_size: int = None, chunk_overlap: int = None):
         self.chunk_size = chunk_size or settings.chunk_size
         self.chunk_overlap = chunk_overlap or settings.chunk_overlap
@@ -84,8 +89,12 @@ class PDFProcessor:
                 last_period = chunk_text.rfind('.')
                 last_newline = chunk_text.rfind('\n')
                 break_point = max(last_period, last_newline)
-                
-                if break_point > start + self.chunk_size - 100:
+
+                # break_point is an index *within* chunk_text, so it must be
+                # compared against a chunk-relative threshold. Using the
+                # absolute `start` here meant the sentence-boundary trim only
+                # ever fired on the first chunk (start == 0).
+                if break_point > self.chunk_size - 100:
                     chunk_text = chunk_text[:break_point + 1]
                     end = start + break_point + 1
             
@@ -110,15 +119,33 @@ class PDFProcessor:
         
         return chunks
     
-    # A breed heading is a short ALL-CAPS line (the breed name) immediately
-    # followed by a longer ALL-CAPS line (the marketing tagline). This pattern
-    # reliably separates "GOLDEN RETRIEVER" from running headers like
-    # "258 GUIDE TO BREEDS" (whose following line is another short name).
+    # A breed heading is a short ALL-CAPS line (the breed name) whose entry
+    # contains a stats "info box" shortly after it — every breed in the book has
+    # one, listing Origin / Weight range / Height range / Life span. Keying off
+    # the info box (rather than the old "ALL-CAPS tagline on the next line"
+    # heuristic) is what makes detection reliable: the book has TWO entry
+    # formats — featured breeds (NAME, ALL-CAPS tagline, prose, then the box)
+    # and compact breeds (NAME then the box directly, with NO tagline). The
+    # tagline rule silently missed every compact breed (~130 of them, e.g.
+    # PHARAOH HOUND, SCHNAUZER), merging each into the preceding breed's chunk.
+    # The info box is present in both formats and absent from care/reference
+    # headers like "PELLETS" or "INHERITED DISORDERS", so it also rejects those.
+    _INFOBOX_FIELDS = ("origin", "weight range", "height range", "life span")
+    # How many lines after the name to scan for the info box. Featured breeds
+    # put the box after a paragraph of prose, so the window must be generous.
+    _INFOBOX_WINDOW = 40
+
     # Section titles / running headers that look ALL-CAPS but aren't breeds.
+    # Plural group words (HOUNDS, TERRIERS) tag dividers like "SCENT HOUNDS";
+    # real breeds use the singular (AFGHAN HOUND, NORWICH TERRIER).
     _SECTION_WORDS = {
         "GUIDE", "BREEDS", "CONTENTS", "INDEX", "GLOSSARY", "HEALTH", "CARE",
         "INTRODUCTION", "ACKNOWLEDGMENTS", "ACKNOWLEDGEMENTS", "GROUPS",
+        "HOUNDS", "TERRIERS", "GUNDOGS",
     }
+    # Kennel-club / registry abbreviations that sit inside every info box and
+    # would otherwise be mistaken for one-word breed names.
+    _REGISTRY_WORDS = {"KC", "FCI", "AKC", "UKC", "ANKC", "CKC", "NZKC"}
 
     @staticmethod
     def _is_caps(s: str) -> bool:
@@ -127,7 +154,7 @@ class PDFProcessor:
 
     def _is_breed_name_line(self, line: str) -> bool:
         s = line.strip()
-        if not (2 <= len(s) <= 40):
+        if not (3 <= len(s) <= 40):
             return False
         # Breed names carry no digits; a digit means it's a page-header artifact
         # like "43WORKING DOGS" or "264 GUIDE TO BREEDS".
@@ -135,33 +162,31 @@ class PDFProcessor:
             return False
         if not self._is_caps(s):
             return False
+        # Registry markers (KC, FCI, AKC, ...) are ALL-CAPS and sit by the box.
+        if s in self._REGISTRY_WORDS:
+            return False
         words = s.split()
         if not (1 <= len(words) <= 5):
             return False
-        # Reject section headers ("WORKING DOGS", "TERRIERS", "GUIDE TO BREEDS").
+        # Reject section headers ("WORKING DOGS", "SCENT HOUNDS", "GUIDE TO BREEDS").
         if any(w in self._SECTION_WORDS for w in words):
             return False
         if words[-1] == "DOGS":  # category headers: TOY DOGS, WORKING DOGS, ...
             return False
         return True
 
-    def _is_tagline_line(self, line: str) -> bool:
-        s = line.strip()
-        return self._is_caps(s) and len(s.split()) >= 5
+    def _has_infobox_after(self, lines: List[str], i: int) -> bool:
+        """True if a breed stats box (>=2 field labels) appears soon after line i."""
+        window = " ".join(lines[i + 1 : i + 1 + self._INFOBOX_WINDOW]).lower()
+        return sum(field in window for field in self._INFOBOX_FIELDS) >= 2
 
     def _find_breed_headings(self, lines: List[str]) -> List[int]:
-        """Indices of lines that start a breed entry (name + tagline pattern)."""
-        headings: List[int] = []
-        for i, line in enumerate(lines):
-            if not self._is_breed_name_line(line):
-                continue
-            # Next non-empty line must look like a tagline sentence.
-            j = i + 1
-            while j < len(lines) and not lines[j].strip():
-                j += 1
-            if j < len(lines) and self._is_tagline_line(lines[j]):
-                headings.append(i)
-        return headings
+        """Indices of lines that start a breed entry (name followed by an info box)."""
+        return [
+            i
+            for i, line in enumerate(lines)
+            if self._is_breed_name_line(line) and self._has_infobox_after(lines, i)
+        ]
 
     def _chunk_by_breed_entries(
         self,
@@ -197,11 +222,19 @@ class PDFProcessor:
             char_start = line_offsets[start_line]
             page_number = page_for_offset(char_start)
 
+            # A real breed entry is at most a page or two. When the gap to the
+            # next detected heading is far larger, the surplus is NOT this breed
+            # — it's inter-section or back-matter content (e.g. the LAST breed
+            # otherwise swallows the whole care/glossary/index tail). Cap the
+            # breed entry and re-chunk the overflow generically, WITHOUT the
+            # (wrong) breed label, so it stays retrievable but unattributed.
+            entry, overflow = section[:self.MAX_ENTRY_CHARS], section[self.MAX_ENTRY_CHARS:]
+
             # Very long entries (rare) get size-split, each piece keeping the name.
             pieces = (
-                [section]
-                if len(section) <= int(self.chunk_size * 1.6)
-                else self._split_oversized(section)
+                [entry]
+                if len(entry) <= int(self.chunk_size * 1.6)
+                else self._split_oversized(entry)
             )
             for piece in pieces:
                 chunks.append({
@@ -214,6 +247,15 @@ class PDFProcessor:
                         "page_number": page_number,
                     },
                 })
+
+            overflow = overflow.strip()
+            if len(overflow) >= self.MIN_CHUNK_CHARS:
+                overflow_start = char_start + len(entry)
+                for gc in self.chunk_text(overflow, dict(base_metadata)):
+                    rel = gc["metadata"].get("char_start", 0)
+                    gc["metadata"]["page_number"] = page_for_offset(overflow_start + rel)
+                    gc["metadata"]["chunk_index"] = len(chunks)
+                    chunks.append(gc)
 
         logger.info(f"Breed-aware chunking produced {len(chunks)} chunks "
                     f"from {len(headings)} detected breed entries")

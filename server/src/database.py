@@ -288,16 +288,36 @@ class Database:
         w_vec = 1.0
         w_fts = 2.0
         w_trgm = 1.2  # Fuzzy (typo-tolerant) keyword signal.
+        # Strongest signal: a chunk whose own breed LABEL matches a query term
+        # IS that breed's entry. This lifts it above chunks that merely mention
+        # the name in passing (care / cross-reference text), which trigram and
+        # full-text score identically. Only works because chunks are tagged with
+        # their breed during ingestion.
+        w_name = 3.0
 
-        # Trigram fuzzy term: the longest word in the query (usually the breed
-        # name) so misspellings like "schnzautzer" still match "schnauzer".
-        # Exact full-text already handles correctly-spelled names; this is the
-        # fallback that catches typos and STT errors.
-        fuzzy_term = ""
+        # Trigram fuzzy terms: the breed name(s) in the query, so misspellings
+        # or STT errors like "schnzautzer" still match "schnauzer". Exact
+        # full-text already handles correctly-spelled names; this is the typo
+        # fallback. Breed names are proper nouns, so prefer capitalized tokens
+        # (both typists and the speech transcriber capitalize breed names),
+        # skipping the sentence-initial word. Fall back to the longest word only
+        # when nothing is capitalized. Picking the longest word alone is wrong:
+        # in "the weimaraner's temperament" it targets "temperament", not the
+        # breed, so the fuzzy rescue never fires on the name it exists for.
+        fuzzy_terms: List[str] = []
         if query_text:
-            words = re.findall(r"[a-z]{5,}", query_text.lower())
-            if words:
-                fuzzy_term = max(words, key=len)
+            raw_words = re.findall(r"[A-Za-z]+", query_text)
+            caps = [
+                w.lower()
+                for i, w in enumerate(raw_words)
+                if len(w) >= 3 and w[0].isupper() and (i > 0 or w.isupper())
+            ]
+            if caps:
+                fuzzy_terms = caps
+            else:
+                long_words = [w.lower() for w in raw_words if len(w) >= 5]
+                if long_words:
+                    fuzzy_terms = [max(long_words, key=len)]
 
         conn = self._get_connection()
         try:
@@ -306,6 +326,7 @@ class Database:
                     doc_vec = "WHERE c.document_id = %(doc)s" if document_id else ""
                     doc_fts = "AND c.document_id = %(doc)s" if document_id else ""
                     doc_trgm = "AND c.document_id = %(doc)s" if document_id else ""
+                    doc_brd = "AND c.document_id = %(doc)s" if document_id else ""
                     thresh_sql = (
                         "WHERE (1 - (c.embedding <=> %(qvec)s::vector)) >= %(thresh)s"
                         if threshold is not None else ""
@@ -345,25 +366,55 @@ class Database:
                         ),
                         trgm AS (
                             -- Fuzzy fallback: trigram word-similarity catches
-                            -- misspelled / mis-transcribed breed names.
+                            -- misspelled / mis-transcribed breed names. Score
+                            -- each chunk by the BEST similarity across all
+                            -- candidate query terms (an empty term list yields
+                            -- no rows, so this CTE is skipped).
                             SELECT c.id,
                                    ROW_NUMBER() OVER (
-                                       ORDER BY word_similarity(%(fuzzy)s, c.content) DESC
+                                       ORDER BY sim.ws DESC
                                    ) AS rnk
                             FROM chunks c
-                            WHERE %(fuzzy)s <> ''
-                                  AND word_similarity(%(fuzzy)s, c.content) > 0.3
+                            CROSS JOIN LATERAL (
+                                SELECT max(word_similarity(t, c.content)) AS ws
+                                FROM unnest(%(fuzzy)s::text[]) AS t
+                            ) sim
+                            WHERE sim.ws > 0.3
                                   {doc_trgm}
                             LIMIT %(pool)s
                         ),
+                        brd AS (
+                            -- Breed-label match: the chunk's own breed name
+                            -- fuzzy-matches a query term, so this is that
+                            -- breed's actual entry rather than a passing
+                            -- mention. Tolerant threshold so typos / STT errors
+                            -- ("schnouzer" -> "SCHNAUZER") still bind.
+                            SELECT c.id,
+                                   ROW_NUMBER() OVER (
+                                       ORDER BY nm.sim DESC
+                                   ) AS rnk
+                            FROM chunks c
+                            CROSS JOIN LATERAL (
+                                SELECT max(word_similarity(
+                                           t, lower(c.metadata->>'breed'))) AS sim
+                                FROM unnest(%(fuzzy)s::text[]) AS t
+                            ) nm
+                            WHERE c.metadata ? 'breed'
+                                  AND nm.sim > 0.35
+                                  {doc_brd}
+                            LIMIT %(pool)s
+                        ),
                         fused AS (
-                            SELECT COALESCE(v.id, f.id, t.id) AS id,
+                            SELECT COALESCE(v.id, f.id, t.id, b.id) AS id,
                                    COALESCE(%(wv)s / (%(k)s + v.rnk), 0)
                                  + COALESCE(%(wf)s / (%(k)s + f.rnk), 0)
-                                 + COALESCE(%(wt)s / (%(k)s + t.rnk), 0) AS rrf
+                                 + COALESCE(%(wt)s / (%(k)s + t.rnk), 0)
+                                 + COALESCE(%(wn)s / (%(k)s + b.rnk), 0) AS rrf
                             FROM vec v
                             FULL OUTER JOIN fts f ON v.id = f.id
                             FULL OUTER JOIN trgm t ON COALESCE(v.id, f.id) = t.id
+                            FULL OUTER JOIN brd b
+                                ON COALESCE(v.id, f.id, t.id) = b.id
                         )
                         SELECT c.id, c.content, c.metadata,
                                1 - (c.embedding <=> %(qvec)s::vector) AS similarity
@@ -376,13 +427,14 @@ class Database:
                     cur.execute(query, {
                         "qvec": query_embedding,
                         "qtext": query_text,
-                        "fuzzy": fuzzy_term,
+                        "fuzzy": fuzzy_terms,
                         "doc": document_id,
                         "pool": pool,
                         "k": rrf_k,
                         "wv": w_vec,
                         "wf": w_fts,
                         "wt": w_trgm,
+                        "wn": w_name,
                         "topk": top_k,
                         "thresh": threshold,
                     })
