@@ -1,36 +1,78 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Dog Breed Assistant — Frontend
 
-## Getting Started
+Next.js (App Router) frontend for the [Dog Breed RAG Assistant](../README.md). It
+provides a **text chat** and a **voice chat** over the same RAG knowledge base.
 
-First, run the development server:
+- Text chat → calls the FastAPI backend `POST /query`, renders the grounded
+  answer plus expandable source chunks.
+- Voice chat → fetches a LiveKit room + token from `POST /api/voice/session`,
+  connects with `@livekit/components-react`, and shows live assistant state
+  (listening / thinking / speaking) with an audio-reactive visualizer.
+
+## Stack
+
+- Next.js 15 (App Router, React 19)
+- Tailwind CSS v4, shadcn-style components, `lucide-react` icons
+- `@livekit/components-react` + `livekit-client` for voice
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+bun install      # or: npm install / pnpm install
+bun dev          # or: npm run dev   → http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+The backend must be running (see [`../server/README.md`](../server/README.md)).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Create `client/.env.local`:
 
-## Learn More
+```env
+# Browser → FastAPI base URL
+NEXT_PUBLIC_RAG_API_URL=http://localhost:8000
+# Optional server-side (SSR) fallback
+RAG_API_URL=http://localhost:8000
+```
 
-To learn more about Next.js, take a look at the following resources:
+> Never put secrets behind `NEXT_PUBLIC_*` — those values ship to the browser.
+> LiveKit tokens are minted server-side by the API (`/api/voice/session`); the
+> client never holds the LiveKit secret.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+client/
+├── app/
+│   ├── layout.tsx          # root layout
+│   ├── page.tsx            # renders <ChatApp/>
+│   └── globals.css         # Tailwind v4 + theme tokens
+├── components/
+│   ├── chat-app.tsx        # text/voice mode tabs
+│   ├── text-chat.tsx       # text Q&A UI (queryRag)
+│   ├── voice-chat.tsx      # LiveKit room, mic controls, visualizer
+│   └── ui/button.tsx       # shadcn-style button
+└── lib/
+    ├── api-client.ts       # queryRag / createVoiceSession / endVoiceSession
+    ├── livekit-config.ts   # legacy/static config (deprecated; tokens come from API)
+    └── utils.ts            # cn() helper
+```
 
-## Deploy on Vercel
+## Scripts
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Command | Action |
+|---|---|
+| `bun dev` | Dev server with hot reload |
+| `bun run build` | Production build |
+| `bun run start` | Serve the production build |
+| `bun run lint` | ESLint |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## How it talks to the backend
+
+`lib/api-client.ts` is the single integration point:
+
+- `queryRag(query, topK)` → `POST /query` → `{ answer, chunks, cached }`
+- `createVoiceSession(userId?)` → `POST /api/voice/session` → `{ room_name, token, url }`
+- `endVoiceSession(roomName)` → `DELETE /api/voice/session/{room}`
+
+See [`../docs/api-reference.md`](../docs/api-reference.md) for the full API.
