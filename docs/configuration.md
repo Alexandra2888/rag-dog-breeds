@@ -24,6 +24,8 @@ Loaded by `src/config.py` (pydantic-settings). Defaults shown; the committed
 | `CHUNK_OVERLAP` | `200` | Fallback size chunking only |
 | `API_HOST` | `0.0.0.0` | |
 | `API_PORT` | `8000` | |
+| `LOG_LEVEL` | `INFO` | Root log level (see [observability.md](observability.md)) |
+| `LOG_JSON` | `false` | `true` → one JSON log object per line (prod); `false` → colorized console (dev) |
 | `LIVEKIT_URL` | `ws://localhost:7880` | LiveKit Cloud uses `wss://...livekit.cloud` |
 | `LIVEKIT_API_KEY` | `""` | Required for voice token minting |
 | `LIVEKIT_API_SECRET` | `""` | Required for voice token minting |

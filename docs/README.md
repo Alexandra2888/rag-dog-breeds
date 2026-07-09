@@ -10,6 +10,8 @@ Comprehensive docs for the Dog Breed RAG Assistant. New here? Read in this order
 | [api-reference.md](api-reference.md) | Every FastAPI endpoint with request/response shapes |
 | [caching.md](caching.md) | The shared Postgres answer cache: keys, invalidation, behavior in text and voice |
 | [evaluation.md](evaluation.md) | The Ragas eval suite: metrics, golden dataset, running, extending |
+| [fine-tuning.md](fine-tuning.md) | Synthetic query–passage pairs → retriever fine-tuning (bge-base + MNRL) → recall@k/MRR, tracked in MLflow |
+| [observability.md](observability.md) | Structured logging (structlog): per-request `request_id`, JSON logs, access lines |
 | [configuration.md](configuration.md) | All environment variables and their defaults |
 | [development.md](development.md) | Local setup, running each service, the voice console, troubleshooting |
 | [deployment.md](deployment.md) | Docker Compose stack and production notes |
