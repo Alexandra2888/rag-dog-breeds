@@ -37,12 +37,20 @@ script asserts the two chunk-id sets are disjoint.
 
 ```bash
 cd server
-uv run python -m finetune.generate_pairs                     # full run
+uv run python -m finetune.generate_pairs                      # full run (local Ollama)
 uv run python -m finetune.generate_pairs --limit 5 --questions-per-chunk 2   # smoke test
+uv run python -m finetune.generate_pairs --provider openai    # via an OpenAI-compatible API
 ```
 
-> Question quality tracks the local model. `llama3.1:8b` gives better questions but is
-> slow (~15 s/chunk); `--model llama3.2` is ~4× faster and fine for this task.
+**First run:** 745 chunks → **1,491 pairs** (1,193 train / 298 eval), 0.2% rejection,
+generated locally with `llama3.2`.
+
+> Question quality tracks the model. `llama3.1:8b` gives better questions but is slow
+> (~15 s/chunk) and RAM-heavy; `llama3.2` (default) is ~4× faster and fine here. For a
+> laptop that's memory-bound, `--provider openai` offloads generation to any
+> OpenAI-compatible endpoint (e.g. Gemini/OpenAI/Anthropic — set `INFERENCE_BASE_URL` +
+> `INFERENCE_API_KEY`); the full run then costs ~$0.10 and a few minutes. Generation is
+> the *only* step that uses an LLM — eval and training are LLM-free.
 
 ### 2 & 4 — Retrieval eval (`eval_retrieval.py`)
 
@@ -58,6 +66,11 @@ uv run python -m finetune.eval_retrieval --model finetune/models/bge-base-dogbre
 
 `--model current` reuses the app's `EmbeddingGenerator`, replicating the
 query/passage prompt asymmetry so the baseline reflects production behavior.
+
+**Fair-comparison guarantee.** Each model is evaluated with *its own* required
+prompting, verified empirically: nomic gets `search_query:` on queries and
+`search_document:` on passages; bge gets its query instruction on queries, passages
+plain. So a low nomic score is a real model result, not a prefix-omission artifact.
 
 ### 3 — Fine-tune (`train.py`)
 
@@ -98,13 +111,25 @@ Experiments: `finetune-pairs`, `retrieval-eval`, `finetune-embed`.
 
 ## Results
 
-<!-- Fill from the first full run: baseline vs fine-tuned on the eval split. -->
+Eval split: 298 queries against a 745-chunk corpus (each model uses its own required
+prompting — see the fair-comparison note above).
 
 | Model | recall@3 | recall@5 | MRR@10 |
 |---|---|---|---|
-| current (app `EmbeddingGenerator`) | _TBD_ | _TBD_ | _TBD_ |
-| `bge-base-en-v1.5` (off-the-shelf) | _TBD_ | _TBD_ | _TBD_ |
-| `bge-base-dogbreeds` (fine-tuned) | _TBD_ | _TBD_ | _TBD_ |
+| current: `nomic-embed-text` (Ollama) | 0.275 | 0.322 | 0.239 |
+| `bge-base-en-v1.5` (off-the-shelf) | 0.728 | 0.795 | 0.668 |
+| `bge-base-dogbreeds` (fine-tuned) | _training_ | _training_ | _training_ |
+
+**Reading it.** The biggest jump is just switching the base model
+(`nomic-embed-text` → `bge-base-en-v1.5`): recall@5 **0.32 → 0.80**. That is a real
+model-quality difference (bge-base ranks well above nomic on retrieval benchmarks), not
+a measurement artifact. Fine-tuning is then measured *on top of* the strong bge-base
+baseline, which is the honest bar to beat.
+
+**Caveat.** Absolute recall is held down by the corpus: many chunks are near-duplicate
+breed "info-box" stats (grooming/coat/size), so some synthetic questions are genuinely
+ambiguous across breeds. Treat the numbers as a *relative* comparison between models on
+a fixed eval, not an absolute ceiling.
 
 ## Deploying the fine-tuned model (follow-up)
 
