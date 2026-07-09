@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import random
 import sys
 from pathlib import Path
@@ -155,18 +154,11 @@ def main() -> int:
     args = parse_args()
     model = args.model or settings.ollama_chat_model
 
-    # --- MLflow setup ---
+    # --- MLflow setup (shared helper: sqlite backend, honors MLFLOW_TRACKING_URI) ---
     import mlflow
+    from finetune.mlflow_utils import setup_mlflow
 
-    if args.mlflow_uri:
-        mlflow.set_tracking_uri(args.mlflow_uri)
-    elif os.getenv("MLFLOW_TRACKING_URI"):
-        mlflow.set_tracking_uri(os.environ["MLFLOW_TRACKING_URI"])
-    else:
-        # MLflow >=3 put the plain file store in maintenance mode; use a local
-        # SQLite backend (full-featured) with artifacts under ./mlartifacts.
-        mlflow.set_tracking_uri(f"sqlite:///{Path('mlflow.db').resolve()}")
-    mlflow.set_experiment(args.mlflow_experiment)
+    setup_mlflow(args.mlflow_experiment, args.mlflow_uri)
 
     # --- Load chunks ---
     db = Database()

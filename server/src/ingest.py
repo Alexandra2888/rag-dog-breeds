@@ -99,11 +99,9 @@ def ingest_data_directory(
 
 def main() -> None:
     import sys
+    from src.logging_config import setup_logging
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    setup_logging()
     force = "--force" in sys.argv[1:]
     logger.info(f"Embedding model: {settings.ollama_embedding_model}")
     if force:

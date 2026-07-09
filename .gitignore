@@ -24,7 +24,11 @@ venv/
 .DS_Store
 *.log
 
-# Data
+# MLflow experiment tracking (local SQLite backend + artifact store)
 mlflow/
 mlruns/
-/server/mldlow.db
+mlartifacts/
+**/mlflow.db
+
+# Fine-tuning: trained model checkpoints (large; regenerable via finetune/train.py)
+/server/finetune/models/

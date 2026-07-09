@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # Chunking
     chunk_size: int = Field(default=1000, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=200, alias="CHUNK_OVERLAP")
+
+    # Logging. log_json=True emits one JSON object per line (prod / log aggregators);
+    # False renders a colorized console format for local dev.
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+    log_json: bool = Field(default=False, alias="LOG_JSON")
     
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")

@@ -186,10 +186,9 @@ async def entrypoint(ctx: JobContext) -> None:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    )
+    from src.logging_config import setup_logging
+
+    setup_logging()
     # Load .env so the LiveKit CLI sees LIVEKIT_URL / LIVEKIT_API_KEY /
     # LIVEKIT_API_SECRET (and OPENAI_API_KEY) when run locally.
     try:

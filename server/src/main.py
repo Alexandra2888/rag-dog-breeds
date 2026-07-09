@@ -2,15 +2,22 @@
 import logging
 import shutil
 import tempfile
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, HTTPException, UploadFile, File, status
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from src.config import settings
+from src.logging_config import (
+    setup_logging,
+    get_logger,
+    bind_request_id,
+    clear_request_context,
+)
 from src.models import (
     IngestRequest,
     IngestResponse,
@@ -31,12 +38,10 @@ from src.database import Database
 from src.rag_service import RAGService
 from src.ingest import ingest_data_directory
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure structured logging for all entrypoints (structlog + stdlib bridge).
+setup_logging()
 logger = logging.getLogger(__name__)
+access_logger = get_logger("api.access")
 
 # Initialize services
 pdf_processor = PDFProcessor()
@@ -93,6 +98,43 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def request_context_middleware(request: Request, call_next):
+    """Attach a request_id to every log line and emit one structured access log.
+
+    The id comes from an inbound ``X-Request-ID`` (so it propagates across the
+    frontend/voice-agent hops) or is minted here, then bound to a contextvar so
+    downstream logs (db, rag, embeddings) inherit it. Echoed back in the response.
+    """
+    request_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex
+    clear_request_context()
+    bind_request_id(request_id)
+    start = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        access_logger.exception(
+            "request_failed",
+            method=request.method,
+            path=request.url.path,
+            duration_ms=duration_ms,
+        )
+        clear_request_context()
+        raise
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+    access_logger.info(
+        "request",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=duration_ms,
+    )
+    response.headers["X-Request-ID"] = request_id
+    clear_request_context()
+    return response
 
 
 def _ingest_pdf_file(pdf_path: Path) -> IngestResponse:
@@ -434,9 +476,14 @@ async def end_voice_session(room_name: str):
 
 
 @app.exception_handler(Exception)
-async def global_exception_handler(request, exc):
-    """Global exception handler."""
-    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+async def global_exception_handler(request: Request, exc):
+    """Global exception handler. request_id is inherited from the contextvar."""
+    access_logger.exception(
+        "unhandled_exception",
+        method=request.method,
+        path=request.url.path,
+        error=str(exc),
+    )
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"detail": "Internal server error"}
