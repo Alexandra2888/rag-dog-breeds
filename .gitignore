@@ -23,3 +23,8 @@ venv/
 # OS / editor
 .DS_Store
 *.log
+
+# Data
+mlflow/
+mlruns/
+/server/mldlow.db

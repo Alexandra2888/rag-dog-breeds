@@ -36,5 +36,6 @@ dev-dependencies = [
     "langchain-ollama<1.0",
     "langchain-openai<1.0",
     "ragas>=0.4.3",
+    "mlflow>=2.14",
 ]
 

@@ -660,6 +660,49 @@ class Database:
         finally:
             self._return_connection(conn)
 
+    def get_all_chunks(self) -> List[Dict[str, Any]]:
+        """
+        Get every chunk across all documents.
+
+        Same shape as ``get_document_chunks`` but without the document filter —
+        used for corpus-wide tasks (e.g. building synthetic query-passage pairs).
+
+        Returns:
+            List of chunk dictionaries: {"id", "content", "metadata"}
+        """
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT id, content, metadata
+                    FROM chunks
+                    ORDER BY created_at;
+                    """
+                )
+                results = cur.fetchall()
+
+                chunks = []
+                for row in results:
+                    metadata = row[2]
+                    if isinstance(metadata, str):
+                        metadata = json.loads(metadata)
+                    elif metadata is None:
+                        metadata = {}
+
+                    chunks.append({
+                        "id": str(row[0]),
+                        "content": row[1],
+                        "metadata": metadata
+                    })
+
+                return chunks
+        except Exception as e:
+            logger.error(f"Error getting all chunks: {e}")
+            raise
+        finally:
+            self._return_connection(conn)
+
     # ------------------------------------------------------------------ #
     # Answer cache
     # ------------------------------------------------------------------ #
