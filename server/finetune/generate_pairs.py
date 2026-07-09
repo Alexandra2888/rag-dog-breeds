@@ -67,7 +67,10 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Generate synthetic query-passage pairs")
     p.add_argument("--questions-per-chunk", type=int, default=3, help="questions to ask per chunk")
     p.add_argument("--limit", type=int, default=None, help="cap the number of source chunks (logs the cap)")
-    p.add_argument("--model", type=str, default=None, help="Ollama chat model (default: settings.ollama_chat_model)")
+    p.add_argument("--provider", choices=["ollama", "openai"], default="ollama",
+                   help="ollama (local) or openai (OpenAI-compatible API, e.g. Gemini free tier — fast, no local RAM)")
+    p.add_argument("--model", type=str, default=None,
+                   help="chat model (default: ollama_chat_model for ollama, inference_chat_model for openai)")
     p.add_argument("--split", type=float, default=0.8, help="train fraction (by chunk)")
     p.add_argument("--seed", type=int, default=42, help="shuffle seed for the split")
     p.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="where to write the JSONL files")
@@ -121,7 +124,62 @@ def clean_questions(
     return kept
 
 
-def generate_for_chunk(client: ollama.Client, model: str, chunk: dict, n: int, temperature: float) -> list[str]:
+def make_chat_fn(provider: str, model: str, temperature: float):
+    """Return a ``chat(system, user) -> str`` closure for the chosen provider.
+
+    - ``ollama``: local Ollama client (free, but slow / RAM-bound on a laptop).
+    - ``openai``: any OpenAI-compatible endpoint (e.g. Gemini's free tier). Fast,
+      no local RAM cost. Reads base_url/api_key from settings (INFERENCE_*) unless
+      overridden via env/CLI. Same client pattern the app uses in rag_service.py.
+    """
+    if provider == "ollama":
+        client = ollama.Client(host=settings.ollama_base_url)
+
+        def chat(system: str, user: str) -> str:
+            resp = client.chat(
+                model=model,
+                messages=[{"role": "system", "content": system},
+                          {"role": "user", "content": user}],
+                format="json",
+                options={"temperature": temperature},
+            )
+            return resp["message"]["content"]
+        return chat
+
+    if provider == "openai":
+        from openai import OpenAI
+        base = settings.inference_base_url or None
+        key = settings.inference_api_key or "not-needed"
+        if not settings.inference_base_url or not settings.inference_api_key:
+            print("  ! provider=openai but INFERENCE_BASE_URL / INFERENCE_API_KEY "
+                  "are not set in .env — the API calls will fail.")
+        client = OpenAI(base_url=base, api_key=key)
+        # Some OpenAI-compatible providers (e.g. Anthropic's compat endpoint) reject
+        # response_format=json_object. Try it once; fall back to plain on rejection.
+        state = {"json_mode": True}
+
+        def chat(system: str, user: str) -> str:
+            messages = [{"role": "system", "content": system},
+                        {"role": "user", "content": user}]
+            kwargs = {"model": model, "messages": messages, "temperature": temperature}
+            if state["json_mode"]:
+                kwargs["response_format"] = {"type": "json_object"}
+            try:
+                resp = client.chat.completions.create(**kwargs)
+            except Exception as e:
+                if state["json_mode"] and ("response_format" in str(e) or "json" in str(e).lower()):
+                    state["json_mode"] = False           # provider doesn't support it
+                    kwargs.pop("response_format", None)
+                    resp = client.chat.completions.create(**kwargs)
+                else:
+                    raise
+            return resp.choices[0].message.content
+        return chat
+
+    raise ValueError(f"unknown provider: {provider}")
+
+
+def generate_for_chunk(chat_fn, chunk: dict, n: int) -> list[str]:
     """Ask the model for questions about one chunk; one retry on empty/bad output."""
     breed = (chunk["metadata"] or {}).get("breed")
     passage = chunk["content"][:PROMPT_PASSAGE_CHARS]
@@ -132,19 +190,11 @@ def generate_for_chunk(client: ollama.Client, model: str, chunk: dict, n: int, t
     )
     for attempt in range(2):
         try:
-            resp = client.chat(
-                model=model,
-                messages=[
-                    {"role": "system", "content": SYSTEM_PROMPT},
-                    {"role": "user", "content": user},
-                ],
-                format="json",
-                options={"temperature": temperature},
-            )
+            content = chat_fn(SYSTEM_PROMPT, user)
         except Exception as e:  # network / model errors: skip this chunk
-            print(f"    ! ollama error: {e}")
+            print(f"    ! generation error: {e}")
             return []
-        questions = extract_questions(resp["message"]["content"])
+        questions = extract_questions(content)
         if questions:
             return questions
     return []
@@ -152,7 +202,8 @@ def generate_for_chunk(client: ollama.Client, model: str, chunk: dict, n: int, t
 
 def main() -> int:
     args = parse_args()
-    model = args.model or settings.ollama_chat_model
+    default_model = settings.inference_chat_model if args.provider == "openai" else settings.ollama_chat_model
+    model = args.model or default_model
 
     # --- MLflow setup (shared helper: sqlite backend, honors MLFLOW_TRACKING_URI) ---
     import mlflow
@@ -180,15 +231,16 @@ def main() -> int:
         return 1
 
     # --- Generate + filter ---
-    client = ollama.Client(host=settings.ollama_base_url)
+    chat_fn = make_chat_fn(args.provider, model, args.temperature)
     seen_global: set[str] = set()
     total_raw = 0
     # {chunk_id: {"chunk": chunk, "questions": [...]}}
     per_chunk: dict[str, dict] = {}
 
-    print(f"Generating up to {args.questions_per_chunk} question(s) per chunk with '{model}'...")
+    print(f"Generating up to {args.questions_per_chunk} question(s) per chunk "
+          f"with '{model}' via {args.provider}...")
     for i, chunk in enumerate(usable, 1):
-        raw = generate_for_chunk(client, model, chunk, args.questions_per_chunk, args.temperature)
+        raw = generate_for_chunk(chat_fn, chunk, args.questions_per_chunk)
         total_raw += len(raw)
         kept = clean_questions(raw, (chunk["metadata"] or {}).get("breed"), seen_global, set())
         if kept:
@@ -240,6 +292,7 @@ def main() -> int:
     # --- Log to MLflow ---
     with mlflow.start_run(run_name="generate-pairs"):
         mlflow.log_params({
+            "provider": args.provider,
             "model": model,
             "questions_per_chunk": args.questions_per_chunk,
             "split_ratio": args.split,

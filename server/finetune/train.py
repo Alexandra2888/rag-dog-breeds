@@ -130,7 +130,8 @@ def main() -> int:
         # Final eval → log the full metric dict (recall@k, mrr, accuracy@k).
         final = evaluator(model)
         if isinstance(final, dict):
-            clean = {k.replace("dogbreeds-eval_", ""): float(v)
+            # Strip the evaluator prefix and sanitize '@' (illegal in MLflow keys).
+            clean = {k.replace("dogbreeds-eval_", "").replace("@", "_at_"): float(v)
                      for k, v in final.items() if isinstance(v, (int, float))}
             mlflow.log_metrics({f"final_{k}": v for k, v in clean.items()})
             print("\n=== Final IR metrics ===")

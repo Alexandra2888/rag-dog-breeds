@@ -122,14 +122,15 @@ def main() -> int:
         q_embs, c_embs = embed_sentence_transformer(args.model, queries, corpus_texts, args.query_prefix)
 
     recall_at, mrr = ir_metrics(q_embs, c_embs, relevant_idx)
-    metrics = {"recall@3": recall_at[3], "recall@5": recall_at[5], "mrr": mrr}
+    # MLflow metric names can't contain '@', so use _at_ keys.
+    metrics = {"recall_at_3": recall_at[3], "recall_at_5": recall_at[5], "mrr_at_10": mrr}
 
     print("\n=== Retrieval eval ===")
     print(f"model        : {args.model}")
     print(f"queries      : {len(queries)}   corpus: {len(corpus_texts)}")
-    print(f"recall@3     : {metrics['recall@3']:.3f}")
-    print(f"recall@5     : {metrics['recall@5']:.3f}")
-    print(f"MRR@10       : {metrics['mrr']:.3f}")
+    print(f"recall@3     : {metrics['recall_at_3']:.3f}")
+    print(f"recall@5     : {metrics['recall_at_5']:.3f}")
+    print(f"MRR@10       : {metrics['mrr_at_10']:.3f}")
 
     if not args.no_mlflow:
         import mlflow

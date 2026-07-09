@@ -39,5 +39,6 @@ dev-dependencies = [
     "ragas>=0.4.3",
     "mlflow>=2.14",
     "sentence-transformers>=3.0",
+    "accelerate>=1.1",
 ]
 
