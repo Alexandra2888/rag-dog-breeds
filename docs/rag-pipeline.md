@@ -62,21 +62,44 @@ breed-label retrieval signal below.
 
 ## 3. Embeddings (`embeddings.py`)
 
-**Provider is pluggable** via `INFERENCE_PROVIDER`: `ollama` (local dev) or
-`openai` (any OpenAI-compatible API). The free cloud deploy uses **Jina**
-(`jina-embeddings-v2-base-en`) for embeddings — configured separately from chat
-via `INFERENCE_EMBEDDING_*`. All options yield **768-dim** vectors so the DB schema
-is unchanged. The `openai` path batches inputs with retry/backoff. See
+The retriever's **primary embedder is a fine-tuned model**, not an off-the-shelf
+one. `EmbeddingGenerator` resolves its backend in priority order:
+
+1. **`ST_MODEL_PATH` set → local fine-tuned sentence-transformers (current default).**
+   When this env var points at a model (prod: `server/finetune/models/bge-base-dogbreeds`),
+   the generator loads it directly with `sentence-transformers` and uses it for
+   **all** embeddings — queries and stored chunks — overriding the provider below.
+   The chat/generation path is unaffected.
+2. **`INFERENCE_PROVIDER=openai` → Jina cloud** (`jina-embeddings-v2-base-en`),
+   configured separately from chat via `INFERENCE_EMBEDDING_*`. Batches inputs
+   with retry/backoff.
+3. **`ollama` → local `nomic-embed-text`** (the original local-dev default).
+
+All three yield **768-dim** vectors, so the DB schema (and existing embeddings)
+are unchanged regardless of backend. See
 [design-decisions.md](design-decisions.md#decision-6--pluggable-inference-provider-local-first-free-to-deploy).
 
-Local model: `nomic-embed-text` (768-dim). nomic is trained with **asymmetric task
-prefixes**, so the code prepends:
+### The fine-tuned model
 
-- `search_document: …` for stored chunks
-- `search_query: …` for user queries
+`bge-base-en-v1.5` fine-tuned on ~1,193 synthetic query→passage pairs with
+**MultipleNegativesRankingLoss**, saved at `server/finetune/models/bge-base-dogbreeds`.
+On the held-out, judge-free eval it lifts **recall@5 from 0.795 → 0.839** vs
+off-the-shelf bge, and far above nomic (0.322). How it was trained and the full
+numbers are in [fine-tuning.md](fine-tuning.md).
 
-Skipping these mismatches the query/document vector spaces and tanks recall, so
-it's applied automatically for nomic models.
+### Task/instruction prefixes (`_apply_task_prefix`)
+
+Both retriever models use **asymmetric** query/document conditioning, applied
+automatically per model family:
+
+- **bge** uses a **query-instruction prefix on the query side only** —
+  `Represent this sentence for searching relevant passages: ` is prepended to
+  queries, while passages are embedded **plain**.
+- **nomic** uses paired task prefixes — `search_document: …` for stored chunks
+  and `search_query: …` for user queries.
+
+Skipping the right prefix mismatches the query/document vector spaces and tanks
+recall, so `_apply_task_prefix` applies the correct scheme for the active model.
 
 ## 4. Hybrid retrieval (`database.py::similarity_search`)
 
@@ -118,12 +141,13 @@ names ("Schnouzer", "Daschund", "weimeraner") resolve to rank 1.
 ## 5. Answer generation (`rag_service.py`)
 
 Retrieved chunks are formatted with source/page tags into a context block and
-sent to the chat model — local Ollama (`llama3.1:8b`) or the hosted provider
-(`gemini-2.5-flash`) depending on `INFERENCE_PROVIDER`. Two prompt styles by `mode`:
+sent to the chat model — local Ollama (`llama3.1:8b`) or an OpenAI-compatible
+hosted provider (prod: **OpenAI `gpt-4o-mini`**) depending on `INFERENCE_PROVIDER`.
+Chat is independent of the embedding backend above. Two prompt styles by `mode`:
 
 - `text` — a full answer; says so when the answer isn't in the context.
 - `voice` — one or two short, spoken-friendly sentences.
 
 Answers are cached keyed by `(normalized_query, mode, top_k)` — see
 [caching.md](caching.md). The cache is checked **before** embedding/search, so an
-exact repeat costs zero Ollama calls.
+exact repeat costs zero embedding and chat-model calls.

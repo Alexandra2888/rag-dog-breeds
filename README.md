@@ -1,10 +1,12 @@
 # Dog Breed RAG Assistant
 
-A full-stack, **local-first** Retrieval-Augmented Generation (RAG) app that answers
-questions about dog breeds — by **text or voice** — grounded in a single source
-book (*The Complete Dog Breed Book*). Retrieval and generation run on local
-[Ollama](https://ollama.com) models; only speech-to-text / text-to-speech use a
-cloud provider.
+A full-stack Retrieval-Augmented Generation (RAG) app that answers questions
+about dog breeds — by **text or voice** — grounded in a single source book
+(*The Complete Dog Breed Book*). The retriever is a **fine-tuned
+`bge-base-en-v1.5`** embedder trained on the corpus (recall@5 **0.80 → 0.84**
+vs off-the-shelf bge). Both embeddings and generation are **pluggable**: run
+fully local on [Ollama](https://ollama.com), or point at cloud providers. The
+live demo runs on Vercel + Fly.io + Neon Postgres with OpenAI chat.
 
 ```
                           ┌──────────────────────────────┐
@@ -20,14 +22,24 @@ cloud provider.
                     └──────────┬──────────┘             │
                                │   shared RAGService + answer cache
                                ▼                         ▼
-            ┌───────────────────────────┐   ┌────────────────────────┐
-            │ Postgres + pgvector (5433) │   │   Ollama (11434)        │
-            │ chunks · query_cache       │   │ nomic-embed-text · LLM  │
-            └───────────────────────────┘   └────────────────────────┘
+            ┌───────────────────────────┐   ┌────────────────────────────┐
+            │ Postgres + pgvector (5433) │   │ fine-tuned bge embedder    │
+            │ chunks · query_cache       │   │ (768-dim) · chat LLM       │
+            │                            │   │ Ollama local │ or OpenAI   │
+            └───────────────────────────┘   └────────────────────────────┘
 ```
 
 ## Highlights
 
+- **Fine-tuned retriever** — `bge-base-en-v1.5` fine-tuned on ~1,193 synthetic
+  dog-breed query→passage pairs (MultipleNegativesRankingLoss). On a held-out,
+  judge-free eval it lifts recall@5 **0.80 → 0.84**, recall@3 0.73 → 0.79, and
+  MRR 0.67 → 0.72 vs off-the-shelf bge — and far above the prior
+  nomic-embed-text (recall@5 0.32). 768-dim, so it drops into the existing
+  pgvector schema. Selected via `ST_MODEL_PATH`; see [fine-tuning.md](docs/fine-tuning.md).
+- **Pluggable providers** — embeddings (local fine-tuned bge · Jina/Gemini
+  cloud · nomic on Ollama) and chat (Ollama `llama3.x` · OpenAI `gpt-4o-mini`,
+  Gemini, Anthropic) each swap via env vars. Prod uses fine-tuned bge + OpenAI.
 - **Hybrid retrieval** — Reciprocal Rank Fusion over four signals: dense vectors,
   full-text keywords, fuzzy trigrams (typo/STT tolerance), and a breed-label
   match. Near-perfect per-breed recall (top-1 39/40, top-5 40/40 on the eval set).
@@ -40,6 +52,8 @@ cloud provider.
   text and voice processes.
 - **Evaluation suite** — [Ragas](https://docs.ragas.io) metrics + a deterministic
   retrieval check, scored by a local Ollama judge (no API cost).
+- **Structured logging** — structlog with a per-request `request_id` threaded
+  through text and voice; JSON logs in production. See [observability.md](docs/observability.md).
 
 ## Repository layout
 
@@ -61,6 +75,11 @@ ollama pull nomic-embed-text && ollama pull llama3.1:8b
 uv sync
 uv run uvicorn src.main:app --reload   # http://localhost:8000  (docs at /docs)
 
+# Embeddings: prod uses the fine-tuned bge model, selected via ST_MODEL_PATH.
+# A fresh clone either trains it (uv run python -m finetune.train, saved to
+# finetune/models/bge-base-dogbreeds) or falls back to nomic (local) / Jina
+# (cloud) if ST_MODEL_PATH is unset. Chat defaults to Ollama llama3.x locally.
+
 # 3. Frontend
 cd ../client
 bun install   # or npm install
@@ -76,10 +95,12 @@ Start at [`docs/README.md`](docs/README.md). Key reads:
 
 - [Architecture](docs/architecture.md) — components and data flow (text + voice)
 - [RAG pipeline](docs/rag-pipeline.md) — chunking, embeddings, hybrid search, generation
+- [Fine-tuning](docs/fine-tuning.md) — synthetic pairs → bge fine-tune (MNRL) → recall@k/MRR, MLflow
 - [Design decisions](docs/design-decisions.md) — **why** it's built this way (interview-ready)
 - [API reference](docs/api-reference.md) — every endpoint
 - [Caching](docs/caching.md) — the shared answer cache
 - [Evaluation](docs/evaluation.md) — running and extending the Ragas suite
+- [Observability](docs/observability.md) — structured logging and per-request `request_id`
 - [Configuration](docs/configuration.md) — environment variables
 - [Development](docs/development.md) — local setup, voice console, troubleshooting
 - [Deployment](docs/deployment.md) — Vercel + Fly.io + managed Postgres

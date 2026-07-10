@@ -21,11 +21,17 @@ Comprehensive docs for the Dog Breed RAG Assistant. New here? Read in this order
 ## TL;DR of how it works
 
 1. A PDF dog-breed book is **ingested**: split into one chunk per breed (detected
-   via the stats info box), embedded with `nomic-embed-text`, stored in pgvector.
+   via the stats info box), embedded with a **fine-tuned `bge-base-en-v1.5`**
+   retriever (768-dim), stored in pgvector. The fine-tune lifts recall@5
+   **0.80 → 0.84** over off-the-shelf bge; embeddings are pluggable (local bge ·
+   Jina/Gemini cloud · nomic on Ollama). See [fine-tuning.md](fine-tuning.md).
 2. A question is answered by **hybrid retrieval** (vectors + full-text + fuzzy
-   trigrams + breed-label match, fused with RRF) feeding a local LLM.
+   trigrams + breed-label match, fused with RRF) feeding an LLM (Ollama local
+   or OpenAI-compatible).
 3. The same pipeline serves **text** (FastAPI `/query`) and **voice** (LiveKit
    agent), and both share a **Postgres answer cache** so repeats cost nothing.
 4. Quality is tracked with a **Ragas** eval suite scored by a local Ollama judge.
+5. It's **deployed live**: Vercel → Fly.io FastAPI (self-hosting the fine-tuned
+   bge) → Neon Postgres/pgvector → OpenAI chat, with a LiveKit voice agent.
 
 See [architecture.md](architecture.md) for the full picture.

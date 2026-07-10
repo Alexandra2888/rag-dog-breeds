@@ -3,8 +3,8 @@
 The live setup:
 
 - **Text chat (free)** — Vercel + Render + Neon + Gemini (chat) + Jina (embeddings).
-- **Text chat (fine-tuned)** — Vercel + **Fly** (FastAPI self-hosting the fine-tuned
-  **bge** embedder) + Neon + Gemini/Anthropic (chat). See
+- **Text chat (fine-tuned, live)** — Vercel + **Fly** (FastAPI self-hosting the
+  fine-tuned **bge** embedder) + Neon + **OpenAI** (chat, `gpt-4o-mini`). See
   [bge in production](#bge-in-production--self-hosted-api-on-fly) and
   [fine-tuning.md](fine-tuning.md).
 - **Voice (always-on)** — a LiveKit agent worker on Fly.io (small cost) + LiveKit
@@ -136,12 +136,15 @@ silently breaks. The `ST_MODEL_PATH` env var is the single switch: set it, and
 ```bash
 cd server
 
-# 1. Create + configure the API app (secrets, not committed)
-fly launch --no-deploy --copy-config --name dog-breed-rag-api
-fly secrets set -a dog-breed-rag-api \
-  DATABASE_URL="<neon>" \
-  INFERENCE_API_KEY="<chat key: Gemini or Anthropic>" \
-  ALLOWED_ORIGINS="https://<your-vercel-app>.vercel.app"
+# 1. Create + configure the API app. Set each secret on ITS OWN LINE with SINGLE
+#    quotes — a multi-line `\` command + a URL containing `?`/`&` gets mangled by zsh.
+fly apps create dog-breed-rag-api
+fly secrets set -a dog-breed-rag-api DATABASE_URL='<neon url, incl. ?sslmode=require>'
+fly secrets set -a dog-breed-rag-api INFERENCE_API_KEY='<OpenAI key — chat, gpt-4o-mini>'
+fly secrets set -a dog-breed-rag-api ALLOWED_ORIGINS='https://<your-vercel-app>.vercel.app'
+# Voice: the API mints LiveKit tokens (POST /api/voice/session), so it needs these too:
+fly secrets set -a dog-breed-rag-api LIVEKIT_API_KEY='<livekit key>'
+fly secrets set -a dog-breed-rag-api LIVEKIT_API_SECRET='<livekit secret>'
 
 # 2. Deploy the API (builds torch+model image). /health passes even before the DB
 #    is bge — nothing points at it yet, so retrieval mismatch is invisible for now.

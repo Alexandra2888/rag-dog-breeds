@@ -8,7 +8,8 @@
 | API | FastAPI (Python 3.11+, `uv`) | 8000 | RAG query/search, ingestion, LiveKit token minting, cache admin |
 | Voice agent | livekit-agents 1.x | — | Real-time spoken Q&A (worker process) |
 | Database | Postgres + pgvector (`pgvector/pgvector:pg16`) | 5433→5432 | Chunks, embeddings, answer cache |
-| LLM + embeddings | Pluggable: Ollama (local) or any OpenAI-compatible API (Gemini in the free cloud deploy) | 11434 (Ollama) | Switched by `INFERENCE_PROVIDER`; see [deployment.md](deployment.md) |
+| Embeddings | Default: local **fine-tuned sentence-transformers** `bge-base-dogbreeds` (via `ST_MODEL_PATH`). Alternatives: Ollama `nomic-embed-text` (local) or OpenAI-compatible / Jina (cloud) | — | Priority `ST_MODEL_PATH` > `INFERENCE_PROVIDER=openai` > `ollama`; all 768-dim. See [rag-pipeline.md](rag-pipeline.md#3-embeddings-embeddingspy), [fine-tuning.md](fine-tuning.md) |
+| Chat / generation | Pluggable: Ollama (local, llama3.x) or any OpenAI-compatible API (prod: **OpenAI `gpt-4o-mini`**) | 11434 (Ollama) | Switched by `INFERENCE_PROVIDER`; see [deployment.md](deployment.md) |
 | Speech | OpenAI STT (`gpt-4o-transcribe`) + TTS | — | Voice only |
 | Realtime transport | LiveKit server (or LiveKit Cloud) | 7880/7881 | WebRTC media for voice |
 
@@ -22,9 +23,9 @@ Browser ──POST /query──► FastAPI ──► RAGService.query(mode="text
                                         │
                        ┌── cache hit ───┴── cache miss ──┐
                        │                                  │
-              return cached answer            embed query (nomic, search_query)
+              return cached answer            embed query (fine-tuned bge, query-instruction prefix)
               (no LLM, ~3ms)                  hybrid search (pgvector + FTS + trgm + breed)
-                                              generate answer (Ollama llama3.1)
+                                              generate answer (configured chat model; prod OpenAI gpt-4o-mini)
                                               store in query_cache
                                         │
                                         ▼
@@ -57,8 +58,12 @@ automatically and answers. STT and TTS use OpenAI; the LLM and retrieval are loc
 
 ## Why this shape
 
-- **Local-first**: retrieval + generation never leave the machine, so there's no
-  per-query API cost and no data egress for the core RAG. Only speech I/O is cloud.
+- **Local-first (still)**: the whole stack runs on one machine with Ollama +
+  local models, so there's no per-query API cost and no data egress for the core
+  RAG. The retriever's default is now a **fine-tuned bge model loaded locally**
+  from `ST_MODEL_PATH` — no external embedding call either. The same image also
+  deploys to the cloud (Vercel → Fly self-hosted bge API → Neon → OpenAI); see
+  [deployment.md](deployment.md).
 - **Shared cache across processes**: because text (FastAPI) and voice (LiveKit
   worker) run separately, the cache must be external — Postgres — so a question
   asked in one mode benefits the other and survives restarts. See
@@ -67,6 +72,14 @@ automatically and answers. STT and TTS use OpenAI; the LLM and retrieval are loc
   labeled fields (Origin / Weight / Height / Life span). The pipeline and evals
   lean on that structure (breed-aware chunking, breed-label retrieval, reference-
   based eval questions).
+
+## Observability
+
+Structured logging is wired through **structlog**: all stdlib logging is routed
+through a single JSON formatter, a `request_id` contextvar is bound by a FastAPI
+middleware and auto-attached to every log line across modules, and each request
+emits an access line. This gives correlated, machine-parseable logs in
+production without per-module wiring. See [observability.md](observability.md).
 
 ## Process / deployment topology
 

@@ -34,14 +34,22 @@ Loaded by `src/config.py` (pydantic-settings). Defaults shown; the committed
 | `OPENAI_API_KEY` | `""` | Required for voice STT + TTS |
 
 Notes:
-- The DB schema is `vector(768)`. All providers produce 768-dim vectors
-  (`nomic-embed-text` natively; `jina-embeddings-v2-base-en` natively;
-  `gemini-embedding-001` via `INFERENCE_EMBEDDING_DIM=768`). Switching the
-  embedding model means re-ingesting (new vector space).
-- **Local dev** uses Ollama (`INFERENCE_PROVIDER=ollama`, default). **Free cloud
-  deploy** uses **Gemini for chat + Jina for embeddings** (`INFERENCE_PROVIDER=openai`
-  plus `INFERENCE_EMBEDDING_*`) — see [deployment.md](deployment.md). Keep prod
-  values in `server/.env.prod` (gitignored).
+- **Embedding provider precedence:** `ST_MODEL_PATH` (local fine-tuned
+  sentence-transformers model) **overrides everything** — when set, it's used for
+  all embeddings regardless of `INFERENCE_PROVIDER`. Otherwise `INFERENCE_PROVIDER`
+  decides: `openai` (Jina/Gemini) or `ollama` (nomic). See
+  [fine-tuning.md](fine-tuning.md).
+- The DB schema is `vector(768)`. All embedders produce 768-dim vectors
+  (`bge-base-en-v1.5` fine-tuned natively; `nomic-embed-text` natively;
+  `jina-embeddings-v2-base-en` natively; `gemini-embedding-001` via
+  `INFERENCE_EMBEDDING_DIM=768`). Switching the embedding model means re-ingesting
+  (`python -m src.ingest --force`) — the vectors live in a different space.
+- **Current deploys:** *local dev* and the *live Fly deploy* both use the
+  **fine-tuned bge** embedder (`ST_MODEL_PATH`) + a chat model (Ollama locally,
+  **OpenAI `gpt-4o-mini`** in prod). A lower-cost alternative — **Render + Jina
+  embeddings + Gemini chat** (`INFERENCE_PROVIDER=openai`, no `ST_MODEL_PATH`) — is
+  documented in [deployment.md](deployment.md). Keep prod secrets in
+  `server/.env.prod` (gitignored) or the platform's secret store.
 - Voice needs `OPENAI_API_KEY` (STT/TTS) **and** LiveKit credentials. Text chat
   needs neither.
 

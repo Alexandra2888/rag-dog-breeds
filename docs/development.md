@@ -5,8 +5,17 @@
 - Python 3.11+ and [`uv`](https://github.com/astral-sh/uv)
 - Node + [`bun`](https://bun.sh) (or npm) for the frontend
 - Docker (for Postgres+pgvector)
-- [Ollama](https://ollama.com) with `nomic-embed-text` and `llama3.1:8b`
+- [Ollama](https://ollama.com) with `nomic-embed-text` and `llama3.1:8b` — the
+  zero-config local path (embeddings + chat, no API keys)
 - For voice: `OPENAI_API_KEY` and LiveKit credentials (Cloud or local server)
+
+**Embeddings are pluggable.** Out of the box you get local Ollama
+(`nomic-embed-text`). Production instead runs a **fine-tuned `bge` model**: set
+`ST_MODEL_PATH=finetune/models/bge-base-dogbreeds` and a local
+sentence-transformers model handles all embeddings (chat is unaffected). Either
+works locally; if you switch embedders, **re-ingest** (`--force`) since the vector
+space changes. Cloud alternative: `INFERENCE_PROVIDER=openai` (Jina embeddings,
+OpenAI/Gemini chat). See [configuration.md](configuration.md).
 
 ## Backend
 
@@ -67,6 +76,19 @@ uv run python -m evals.run_eval             # full (slow on a local 8B judge)
 ```
 See [evaluation.md](evaluation.md).
 
+## Fine-tuning the embedder
+
+```bash
+cd server
+uv run python -m finetune.generate_pairs    # synth query→passage pairs (local LLM)
+uv run python -m finetune.eval_retrieval    # held-out recall@k / MRR baseline
+uv run python -m finetune.train             # → finetune/models/bge-base-dogbreeds
+uv run mlflow ui                            # runs + metrics at http://localhost:5000
+```
+Then point the API at it (`ST_MODEL_PATH=finetune/models/bge-base-dogbreeds`) and
+re-ingest (`uv run python -m src.ingest --force`). See
+[fine-tuning.md](fine-tuning.md).
+
 ## Useful checks
 
 ```bash
@@ -85,8 +107,12 @@ curl -X DELETE localhost:8000/cache
 
 - **DB connection refused** → is the `rag-postgres` container up? Is `DATABASE_URL`
   on port **5433** (not 5432)? `docker compose ps`, `docker compose logs postgres`.
-- **Embedding/dimension errors** → the schema is `vector(768)` for
-  `nomic-embed-text`; a different model needs a schema change.
+- **Embedding/dimension errors** → the schema is `vector(768)`; all supported
+  embedders (fine-tuned bge, nomic-embed-text, Jina) are 768-dim, so a different
+  model needs a schema change. **Garbage results after switching embedders?**
+  You changed the vector space — re-ingest with `--force`.
+- **`ST_MODEL_PATH` set but model not found** → train it first (see Fine-tuning)
+  or unset it to fall back to Ollama/Jina.
 - **Empty / bad answers** → confirm the PDF ingested (`/documents`) and Ollama has
   the models (`ollama list`).
 - **Voice silent / errors** → check `OPENAI_API_KEY` and LiveKit creds; the agent

@@ -1,5 +1,13 @@
 # Evaluation
 
+Two complementary layers:
+
+- **Retrieval quality** (rank-based, no LLM judge) — recall@3/5 and MRR on a
+  held-out synthetic set, used to prove the embedding **fine-tuning** win
+  (recall@5 0.80 → 0.84). Code in `server/finetune/eval_retrieval.py`; see
+  [fine-tuning.md](fine-tuning.md).
+- **Generation quality** (this doc) — Ragas metrics over the real pipeline.
+
 Quality is tracked with [Ragas](https://docs.ragas.io). The harness runs the
 **real** pipeline (`RAGService.query`) over a versioned golden dataset and scores
 it with a **local Ollama judge**, so evaluation costs no API tokens. Code in

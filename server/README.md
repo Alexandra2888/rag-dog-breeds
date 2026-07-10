@@ -2,18 +2,27 @@
 
 FastAPI service that powers the [Dog Breed RAG Assistant](../README.md): PDF
 ingestion, hybrid retrieval, answer generation, a shared answer cache, a LiveKit
-voice agent, and a Ragas eval suite. Retrieval and generation run on local
-**Ollama**; storage is **Postgres + pgvector**.
+voice agent, an embedding-model fine-tuning pipeline, and a Ragas eval suite.
+Embeddings and chat are **pluggable**: a **fine-tuned local `bge` model** (the
+production default, via `ST_MODEL_PATH`), local **Ollama**, or cloud
+(Jina embeddings / OpenAI · Gemini chat). Storage is **Postgres + pgvector**.
 
 ```
-PDF → breed-aware chunking → Ollama embeddings → pgvector
+PDF → breed-aware chunking → embeddings (fine-tuned bge / Ollama / Jina) → pgvector
                                                      │
-question → hybrid retrieval (vector + FTS + trigram + breed-label, RRF) → Ollama LLM → answer
+question → hybrid retrieval (vector + FTS + trigram + breed-label, RRF) → LLM (Ollama / OpenAI) → answer
                                                      │
                                           shared answer cache (Postgres)
                                                      │
                               text: FastAPI /query   ·   voice: LiveKit agent
 ```
+
+Provider priority: **`ST_MODEL_PATH`** (fine-tuned bge, current prod) >
+**`INFERENCE_PROVIDER=openai`** (Jina embeddings / OpenAI · Gemini chat) >
+**`ollama`** (nomic + llama, local). All embedding options are 768-dim.
+Production runs the fine-tuned bge self-hosted on **Fly.io** → **Neon** pgvector,
+with **OpenAI `gpt-4o-mini`** for chat. See
+[fine-tuning](../docs/fine-tuning.md) and [design-decisions](../docs/design-decisions.md).
 
 For the full design (and **why**), see [`../docs/`](../docs/README.md) —
 especially [rag-pipeline](../docs/rag-pipeline.md) and
@@ -23,13 +32,21 @@ especially [rag-pipeline](../docs/rag-pipeline.md) and
 
 - Python 3.11+ and [`uv`](https://github.com/astral-sh/uv)
 - Docker (Postgres + pgvector)
-- [Ollama](https://ollama.com) with `nomic-embed-text` and `llama3.1:8b`
+- [Ollama](https://ollama.com) with `nomic-embed-text` and `llama3.1:8b` for the
+  default local path (embeddings + chat, no API keys)
 - Voice only: `OPENAI_API_KEY` (STT/TTS) and LiveKit credentials
 
 ```bash
 ollama pull nomic-embed-text
 ollama pull llama3.1:8b
 ```
+
+To use the **fine-tuned `bge` embedder** instead (production default), set
+`ST_MODEL_PATH=finetune/models/bge-base-dogbreeds` — a local sentence-transformers
+model then handles all embeddings, overriding Ollama/Jina (chat is unaffected).
+Train it via the [fine-tuning pipeline](#fine-tuning) or point at any local
+sentence-transformers model. Cloud chat uses `INFERENCE_PROVIDER=openai` with
+`OPENAI_API_KEY` (OpenAI `gpt-4o-mini` in prod).
 
 ## Setup
 
@@ -67,7 +84,8 @@ Interactive: `/docs` (Swagger), `/redoc`.
 ## Voice agent
 
 Built on **livekit-agents 1.x**. OpenAI handles STT (`gpt-4o-transcribe`) + TTS;
-the LLM and RAG run locally. Each turn is answered through the **cached**
+the LLM and RAG follow the same provider config as text (local Ollama in dev,
+OpenAI `gpt-4o-mini` in prod). Each turn is answered through the **cached**
 `RAGService.query`, spoken via `session.say()`, skipping the LLM on a cache hit
 (with a safe fallback). Talk to it in your terminal:
 
@@ -94,6 +112,22 @@ uv run python -m evals.run_eval             # full suite (slow on a local judge)
 Details: [`evals/README.md`](evals/README.md) and
 [`../docs/evaluation.md`](../docs/evaluation.md).
 
+## Fine-tuning
+
+An offline pipeline (`finetune/`) fine-tunes `bge-base-en-v1.5` on synthetic
+in-domain query→passage pairs (MultipleNegativesRankingLoss), tracked in MLflow.
+Held-out judge-free win: recall@5 **0.795 → 0.839** vs off-the-shelf bge.
+
+```bash
+uv run python -m finetune.generate_pairs    # synth pairs from the corpus (local LLM)
+uv run python -m finetune.eval_retrieval    # held-out recall@k / MRR baseline
+uv run python -m finetune.train             # train → finetune/models/bge-base-dogbreeds
+uv run mlflow ui                            # inspect runs at http://localhost:5000
+```
+
+Point the API at the result with `ST_MODEL_PATH` (then re-ingest). Details:
+[`../docs/fine-tuning.md`](../docs/fine-tuning.md).
+
 ## Project structure
 
 ```
@@ -103,11 +137,14 @@ server/
 ├── pyproject.toml          # uv deps (runtime + dev: ragas, langchain-ollama)
 ├── data/                   # PDF knowledge base
 ├── evals/                  # Ragas eval suite (golden.jsonl, run_eval.py)
+├── finetune/               # embedding fine-tuning (generate_pairs, train, eval, MLflow)
+│   └── models/             # trained model (bge-base-dogbreeds, gitignored)
 └── src/
     ├── main.py             # FastAPI app + routes + startup auto-ingest
-    ├── config.py           # env settings
+    ├── config.py           # env settings (providers, ST_MODEL_PATH)
+    ├── logging_config.py   # structlog setup + per-request request_id
     ├── pdf_processor.py    # breed-aware chunking
-    ├── embeddings.py       # Ollama embeddings (nomic task prefixes)
+    ├── embeddings.py       # pluggable embeddings (fine-tuned bge via ST_MODEL_PATH / Ollama / Jina)
     ├── database.py         # pgvector ops, hybrid search (RRF), answer cache
     ├── rag_service.py      # retrieval + generation + cache orchestration
     ├── models.py           # Pydantic request/response models
@@ -122,8 +159,10 @@ See [`../docs/configuration.md`](../docs/configuration.md) (env vars) and
 [`../docs/development.md`](../docs/development.md) (troubleshooting). Key gotchas:
 
 - `DATABASE_URL` uses host port **5433** (Docker maps `5433:5432`).
-- DB schema is `vector(768)` for `nomic-embed-text`; a different-dimension model
-  needs a schema change.
+- DB schema is `vector(768)`; every embedder used (fine-tuned bge, nomic-embed-text,
+  Jina) is 768-dim, so the schema is stable — but **switching embedders requires a
+  re-ingest** (the vector space differs), and a different-dimension model would
+  need a schema change.
 - `import ragas` requires the pinned langchain 0.3.x line — run `uv sync`.
 
 ## License
