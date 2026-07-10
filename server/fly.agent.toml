@@ -18,7 +18,9 @@ app = "dog-breed-rag-agent"
 primary_region = "fra"          # match your LiveKit Cloud region (Germany) for low latency
 
 [build]
-  dockerfile = "Dockerfile"
+  # bge image (torch + baked-in model) — same as the API. Deploy from LOCAL
+  # (`fly deploy -c fly.agent.toml`); the model is gitignored so git builds can't COPY it.
+  dockerfile = "Dockerfile.bge"
 
 # Run the LiveKit worker (Dockerfile default is the API; override here).
 [processes]

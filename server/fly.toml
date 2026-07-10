@@ -22,7 +22,9 @@ app = "dog-breed-rag-api"
 primary_region = "fra"
 
 [build]
-  dockerfile = "Dockerfile"
+  # bge image (torch + baked-in model). Deploy from LOCAL — the model is gitignored,
+  # so a git-based build can't COPY it. `fly deploy` uploads your local build context.
+  dockerfile = "Dockerfile.bge"
 
 [env]
   # Embeddings: the local fine-tuned model (overrides any provider; chat is separate).

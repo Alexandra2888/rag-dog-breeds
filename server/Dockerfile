@@ -18,21 +18,9 @@ COPY pyproject.toml ./
 COPY src/ ./src/
 # The knowledge-base PDF(s) must ship in the image so startup auto-ingest works.
 COPY data/ ./data/
-# Fine-tuned embedding model, baked in. ST_MODEL_PATH points here so the app
-# embeds locally with bge (no external embeddings API). ~440 MB.
-COPY finetune/models/bge-base-dogbreeds ./finetune/models/bge-base-dogbreeds
 
-# Install runtime deps, then the local-embedder stack: CPU-only torch (small —
-# avoids the multi-GB CUDA build) followed by sentence-transformers. Order
-# matters: install CPU torch first so sentence-transformers doesn't pull CUDA torch.
-RUN uv pip install --system -e . \
- && uv pip install --system --index-url https://download.pytorch.org/whl/cpu torch \
- && uv pip install --system "sentence-transformers>=3.0"
-
-# The bge weights are baked in — never reach out to HuggingFace at runtime
-# (faster, deterministic, works if the network blips mid-demo).
-ENV HF_HUB_OFFLINE=1 \
-    TRANSFORMERS_OFFLINE=1
+# Install Python dependencies with uv (runtime deps only; dev deps excluded)
+RUN uv pip install --system -e .
 
 # Expose API port (for FastAPI)
 EXPOSE 8000

@@ -1,0 +1,47 @@
+# bge image: FastAPI API / voice agent self-hosting the fine-tuned bge embedder.
+#
+# Bakes torch + sentence-transformers + the model into the image. The model
+# (finetune/models/bge-base-dogbreeds, ~440 MB) is GITIGNORED, so this Dockerfile
+# ONLY builds where that dir is present in the build context — i.e. a LOCAL
+# `fly deploy` (Fly uploads your local files). A git-based build (Render, Fly
+# GitHub Actions) has no model → the COPY fails. Deploy from your machine:
+#
+#   cd server && fly deploy            # uses fly.toml -> this Dockerfile
+#   cd server && fly deploy -c fly.agent.toml
+#
+# (If you must build from git CI, host the model on HuggingFace Hub instead and
+#  set ST_MODEL_PATH to the repo id — drop the COPY + the OFFLINE envs below.)
+
+FROM python:3.11-slim
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml ./
+COPY src/ ./src/
+COPY data/ ./data/
+# Fine-tuned embedding model, baked in. ST_MODEL_PATH points here so the app
+# embeds locally with bge (no external embeddings API). Must exist in the build
+# context (local `fly deploy`) or this COPY fails with "not found".
+COPY finetune/models/bge-base-dogbreeds ./finetune/models/bge-base-dogbreeds
+
+# Runtime deps, then the local-embedder stack: CPU-only torch (small — avoids the
+# multi-GB CUDA build), then sentence-transformers. Install CPU torch FIRST so
+# sentence-transformers doesn't pull the CUDA build.
+RUN uv pip install --system -e . \
+ && uv pip install --system --index-url https://download.pytorch.org/whl/cpu torch \
+ && uv pip install --system "sentence-transformers>=3.0"
+
+# Weights are baked in — never call HuggingFace at runtime (fast, deterministic,
+# survives a network blip mid-demo).
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+
+EXPOSE 8000
+
+CMD ["sh", "-c", "uvicorn src.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
