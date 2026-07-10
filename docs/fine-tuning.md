@@ -118,13 +118,18 @@ prompting — see the fair-comparison note above).
 |---|---|---|---|
 | current: `nomic-embed-text` (Ollama) | 0.275 | 0.322 | 0.239 |
 | `bge-base-en-v1.5` (off-the-shelf) | 0.728 | 0.795 | 0.668 |
-| `bge-base-dogbreeds` (fine-tuned) | _training_ | _training_ | _training_ |
+| **`bge-base-dogbreeds` (fine-tuned)** | **0.789** | **0.839** | **0.719** |
 
-**Reading it.** The biggest jump is just switching the base model
-(`nomic-embed-text` → `bge-base-en-v1.5`): recall@5 **0.32 → 0.80**. That is a real
-model-quality difference (bge-base ranks well above nomic on retrieval benchmarks), not
-a measurement artifact. Fine-tuning is then measured *on top of* the strong bge-base
-baseline, which is the honest bar to beat.
+Fine-tuned with MNRL, 1 epoch, batch 32, on 1,193 synthetic train pairs (Apple MPS,
+~minutes). All three rows are produced by the same `eval_retrieval.py` code path.
+
+**Reading it — two wins.** (1) Switching the base model
+(`nomic-embed-text` → `bge-base-en-v1.5`) is the biggest jump: recall@5 **0.32 → 0.80**,
+a real model-quality difference (bge-base ranks well above nomic on retrieval
+benchmarks), not a measurement artifact. (2) **Fine-tuning then beats the already-strong
+bge-base**: recall@5 **0.795 → 0.839**, recall@3 **0.728 → 0.789**, MRR **0.668 →
+0.719** — the actual point of the exercise, measured on a held-out (by-chunk),
+judge-free eval.
 
 **Caveat.** Absolute recall is held down by the corpus: many chunks are near-duplicate
 breed "info-box" stats (grooming/coat/size), so some synthetic questions are genuinely
