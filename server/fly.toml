@@ -37,6 +37,10 @@ primary_region = "fra"
   INFERENCE_BASE_URL = "https://api.openai.com/v1"
   INFERENCE_CHAT_MODEL = "gpt-4o-mini"
   LOG_JSON = "true"
+  # LiveKit: the API mints voice-session tokens (POST /api/voice/session) and
+  # returns this URL for the browser to connect to. Must match the agent's URL.
+  # LIVEKIT_API_KEY / LIVEKIT_API_SECRET are secrets (fly secrets set).
+  LIVEKIT_URL = "wss://fe-dog-breeds-pv499o1m.livekit.cloud"
 
 # Secrets (set with `fly secrets set ...`), NOT committed:
 #   DATABASE_URL        Neon (must already hold bge vectors)
