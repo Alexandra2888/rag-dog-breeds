@@ -1,0 +1,65 @@
+# Fly.io config — FastAPI RAG API, self-hosting the fine-tuned bge embedder.
+#
+# Unlike the free Render setup (Jina embeddings via API), this bakes torch + the
+# fine-tuned bge-base model into the image and embeds IN-PROCESS. That needs real
+# RAM (2 GB) and an always-on machine — but gives a fast, cold-start-free demo and
+# keeps the retrieval quality win (recall@5 0.80 -> 0.84) live in production.
+#
+# Deploy:
+#   cd server
+#   fly launch --no-deploy --copy-config --name dog-breed-rag-api   # or `fly apps create`
+#   fly secrets set -a dog-breed-rag-api \
+#     DATABASE_URL="<neon>" \
+#     INFERENCE_API_KEY="<chat-provider key: Gemini or Anthropic>" \
+#     ALLOWED_ORIGINS="https://<your-vercel-app>.vercel.app"
+#   fly deploy                       # builds the image (torch+model ~1.5-2 GB), ships it
+#   fly scale memory 2048            # ensure 2 GB (bge + torch)
+#
+# Prereq: Neon must be ingested with bge FIRST (see docs/deployment.md), so the
+# app's startup auto-ingest is a no-op and queries match the stored vectors.
+
+app = "dog-breed-rag-api"
+primary_region = "fra"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Embeddings: the local fine-tuned model (overrides any provider; chat is separate).
+  ST_MODEL_PATH = "finetune/models/bge-base-dogbreeds"
+  HF_HUB_OFFLINE = "1"
+  TRANSFORMERS_OFFLINE = "1"
+  # Chat/answer generation stays on a hosted API (no local LLM). Mirror the agent;
+  # swap to Anthropic (base https://api.anthropic.com/v1/, model claude-haiku-4-5)
+  # if the Gemini free tier is quota-limited.
+  INFERENCE_PROVIDER = "openai"
+  INFERENCE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+  INFERENCE_CHAT_MODEL = "gemini-2.5-flash"
+  LOG_JSON = "true"
+
+# Secrets (set with `fly secrets set ...`), NOT committed:
+#   DATABASE_URL        Neon (must already hold bge vectors)
+#   INFERENCE_API_KEY   chat provider key (Gemini or Anthropic)
+#   ALLOWED_ORIGINS     your Vercel origin (not "*")
+# Note: no Jina key needed — embeddings are local now.
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # Always-on for demos: no cold starts, no "connecting…" while a machine wakes.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    # Startup loads the bge model + verifies the DB; give it room before failing.
+    grace_period = "60s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # bge-base (~440 MB weights) + torch + FastAPI. 1 GB OOMs; 2 GB is comfortable.
+  memory = "2048mb"

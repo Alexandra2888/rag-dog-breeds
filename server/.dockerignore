@@ -17,6 +17,14 @@ evals/
 README.md
 *.md
 
+# Fine-tuning: ship ONLY the model weights (Dockerfile COPYs finetune/models/…).
+# Exclude the scripts, dataset, and experiment tracking to keep the upload lean.
+finetune/*.py
+finetune/data/
+mlflow.db
+mlruns/
+mlartifacts/
+
 # Editor / OS
 .DS_Store
 .idea/

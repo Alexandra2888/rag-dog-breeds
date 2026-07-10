@@ -3,6 +3,10 @@
 The live setup:
 
 - **Text chat (free)** — Vercel + Render + Neon + Gemini (chat) + Jina (embeddings).
+- **Text chat (fine-tuned)** — Vercel + **Fly** (FastAPI self-hosting the fine-tuned
+  **bge** embedder) + Neon + Gemini/Anthropic (chat). See
+  [bge in production](#bge-in-production--self-hosted-api-on-fly) and
+  [fine-tuning.md](fine-tuning.md).
 - **Voice (always-on)** — a LiveKit agent worker on Fly.io (small cost) + LiveKit
   Cloud + OpenAI STT/TTS.
 - **Local / self-hosted** — Docker Compose.
@@ -101,6 +105,76 @@ Notes:
 - **Cheaper alternative:** run the worker locally during a demo
   (`uv run python -m src.livekit_agent dev`) — it dials out to LiveKit Cloud and
   auto-joins rooms; $0 hosting, only STT/TTS usage.
+
+---
+
+## bge in production — self-hosted API on Fly
+
+The free stack embeds with Jina's **API** (near-zero RAM). To serve the **fine-tuned
+bge** model instead, the API must embed **in-process** — which means shipping torch +
+the model and running on a real machine. This trades the free tier for a fast,
+cold-start-free demo that keeps the retrieval win (recall@5 0.80 → 0.84) live.
+Config: [`fly.toml`](../server/fly.toml). Same image serves the voice agent
+([`fly.agent.toml`](../server/fly.agent.toml)).
+
+**The one hard rule:** one Neon DB holds one vector space. The API, the voice agent,
+and the Neon corpus must **all** be bge (or all Jina) — never mixed, or retrieval
+silently breaks. The `ST_MODEL_PATH` env var is the single switch: set it, and
+`EmbeddingGenerator` uses the local bge model for all embeddings (chat path untouched).
+
+### What ships in the image
+- `Dockerfile` bakes in **CPU-only** torch (`--index-url .../whl/cpu`, avoids the
+  multi-GB CUDA build), `sentence-transformers`, and the model at
+  `finetune/models/bge-base-dogbreeds` (~440 MB). `HF_HUB_OFFLINE=1` so it never
+  calls HuggingFace at runtime. Image ≈ 1.5–2 GB.
+- The model is **not in git** (gitignored) — `fly deploy` uploads it from your local
+  build context, so it must exist at `server/finetune/models/bge-base-dogbreeds/`
+  (produced by [`finetune/train.py`](../server/finetune/train.py)).
+
+### Cutover (order matters — minimizes the broken window)
+
+```bash
+cd server
+
+# 1. Create + configure the API app (secrets, not committed)
+fly launch --no-deploy --copy-config --name dog-breed-rag-api
+fly secrets set -a dog-breed-rag-api \
+  DATABASE_URL="<neon>" \
+  INFERENCE_API_KEY="<chat key: Gemini or Anthropic>" \
+  ALLOWED_ORIGINS="https://<your-vercel-app>.vercel.app"
+
+# 2. Deploy the API (builds torch+model image). /health passes even before the DB
+#    is bge — nothing points at it yet, so retrieval mismatch is invisible for now.
+fly deploy
+fly scale memory 2048
+
+# 3. Flip Neon to bge (run LOCALLY — fast, and avoids the Fly box re-embedding on
+#    cold start). This is when the OLD Render/Jina site goes stale — cut over promptly.
+ST_MODEL_PATH=finetune/models/bge-base-dogbreeds \
+  DATABASE_URL="<neon>" uv run python -m src.ingest --force
+
+# 4. Point the frontend at the Fly API and redeploy Vercel
+#    NEXT_PUBLIC_RAG_API_URL=https://dog-breed-rag-api.fly.dev
+
+# 5. Switch the voice agent to bge too (shares Neon). Bump RAM if it OOMs.
+fly deploy -c fly.agent.toml
+fly scale memory 3072 -c fly.agent.toml    # bge + Silero VAD; 2 GB can be tight
+```
+
+### Verify
+```bash
+curl -s https://dog-breed-rag-api.fly.dev/health
+curl -s https://dog-breed-rag-api.fly.dev/query \
+  -H 'content-type: application/json' -d '{"query":"Where is the Akita from?"}'
+```
+Expect the Akita chunk retrieved and a grounded answer. `fly logs -a dog-breed-rag-api`
+shows JSON access lines with `request_id` (structured logging is on via `LOG_JSON=true`).
+
+### Cost / trade-off
+An always-on 2 GB `shared-cpu-1x` machine is ~$5–10/mo (off the free tier). Worth it
+for a reliable live demo; if cost matters more than serving bge in the cloud, keep
+Jina-in-prod and run bge locally (see [fine-tuning.md](fine-tuning.md)) — the eval
+numbers tell the story without hosting the model.
 
 ---
 

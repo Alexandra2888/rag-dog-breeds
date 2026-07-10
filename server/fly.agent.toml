@@ -28,6 +28,12 @@ primary_region = "fra"          # match your LiveKit Cloud region (Germany) for 
   INFERENCE_PROVIDER = "openai"
   INFERENCE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
   INFERENCE_CHAT_MODEL = "gemini-2.5-flash"
+  # Embeddings now come from the local fine-tuned bge model (shipped in the image),
+  # matching the API + the bge vectors in Neon. This OVERRIDES the Jina settings
+  # below, which are kept only as a fallback if ST_MODEL_PATH is ever unset.
+  ST_MODEL_PATH = "finetune/models/bge-base-dogbreeds"
+  HF_HUB_OFFLINE = "1"
+  TRANSFORMERS_OFFLINE = "1"
   INFERENCE_EMBEDDING_BASE_URL = "https://api.jina.ai/v1"
   INFERENCE_EMBEDDING_MODEL = "jina-embeddings-v2-base-en"
   INFERENCE_EMBEDDING_DIM = "0"
@@ -46,4 +52,6 @@ primary_region = "fra"          # match your LiveKit Cloud region (Germany) for 
   size = "shared-cpu-1x"
   # LiveKit prewarms a separate inference process (Silero VAD / turn detection),
   # so the worker + that subprocess need ~1-2 GB. 512 MB OOM-loops.
+  # NOTE: now that the agent also loads the bge embedder (~440 MB) in-process,
+  # 2 GB is tight — bump to 3072mb if you see OOMs (`fly scale memory 3072 -c fly.agent.toml`).
   memory = "2048mb"
