@@ -27,9 +27,12 @@ primary_region = "fra"          # match your LiveKit Cloud region (Germany) for 
   agent = "python -m src.livekit_agent start"
 
 [env]
+  # Chat on OpenAI (same provider as the API; the Gemini free key was exhausted).
+  # INFERENCE_API_KEY secret = the OpenAI key. OPENAI_API_KEY secret (STT/TTS) can
+  # be the same key.
   INFERENCE_PROVIDER = "openai"
-  INFERENCE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-  INFERENCE_CHAT_MODEL = "gemini-2.5-flash"
+  INFERENCE_BASE_URL = "https://api.openai.com/v1"
+  INFERENCE_CHAT_MODEL = "gpt-4o-mini"
   # Embeddings now come from the local fine-tuned bge model (shipped in the image),
   # matching the API + the bge vectors in Neon. This OVERRIDES the Jina settings
   # below, which are kept only as a fallback if ST_MODEL_PATH is ever unset.

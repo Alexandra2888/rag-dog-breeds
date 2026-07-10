@@ -31,12 +31,11 @@ primary_region = "fra"
   ST_MODEL_PATH = "finetune/models/bge-base-dogbreeds"
   HF_HUB_OFFLINE = "1"
   TRANSFORMERS_OFFLINE = "1"
-  # Chat/answer generation stays on a hosted API (no local LLM). Mirror the agent;
-  # swap to Anthropic (base https://api.anthropic.com/v1/, model claude-haiku-4-5)
-  # if the Gemini free tier is quota-limited.
+  # Chat/answer generation on OpenAI (reliable quota; the Gemini free key was
+  # exhausted). INFERENCE_API_KEY (secret) is the OpenAI key.
   INFERENCE_PROVIDER = "openai"
-  INFERENCE_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
-  INFERENCE_CHAT_MODEL = "gemini-2.5-flash"
+  INFERENCE_BASE_URL = "https://api.openai.com/v1"
+  INFERENCE_CHAT_MODEL = "gpt-4o-mini"
   LOG_JSON = "true"
 
 # Secrets (set with `fly secrets set ...`), NOT committed:
