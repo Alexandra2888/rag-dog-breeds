@@ -19,6 +19,7 @@ Loaded by `src/config.py` (pydantic-settings). Defaults shown; the committed
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama API (provider `ollama`) |
 | `OLLAMA_EMBEDDING_MODEL` | `nomic-embed-text` | 768-dim; uses asymmetric task prefixes |
 | `OLLAMA_CHAT_MODEL` | `llama3.2` | Committed `.env` uses `llama3.1:8b` |
+| `ST_MODEL_PATH` | `""` | Local fine-tuned sentence-transformers embedder (path/HF id). When set, overrides the embedding provider for **all** embeddings; chat path unaffected. Must be 768-dim; re-ingest after changing. See [fine-tuning.md](fine-tuning.md) |
 | `ALLOWED_ORIGINS` | `*` | Comma-separated CORS origins; set to your Vercel URL in prod |
 | `CHUNK_SIZE` | `1000` | Fallback size chunking only |
 | `CHUNK_OVERLAP` | `200` | Fallback size chunking only |

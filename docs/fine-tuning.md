@@ -136,10 +136,25 @@ breed "info-box" stats (grooming/coat/size), so some synthetic questions are gen
 ambiguous across breeds. Treat the numbers as a *relative* comparison between models on
 a fixed eval, not an absolute ceiling.
 
-## Deploying the fine-tuned model (follow-up)
+## Deployed in the app
 
-Not wired into the live app yet. When the eval proves the win: add a
-sentence-transformers provider branch to `EmbeddingGenerator.__init__` behind a config
-flag, then re-ingest the corpus (`uv run python -m src.ingest --force`) to re-embed all
-chunks with the new model. Cheap because bge-base is already 768-dim (no schema change);
-keep the provider switchable so you can revert.
+The fine-tuned model is wired into the live retrieval path, gated by a single env var:
+
+```
+ST_MODEL_PATH=finetune/models/bge-base-dogbreeds
+```
+
+When set, `EmbeddingGenerator` loads that local sentence-transformers model and uses it
+for **all** embeddings (ingestion + queries), overriding the ollama/openai provider —
+the chat/LLM path is untouched. bge's query instruction is applied on the query side
+only (`_apply_task_prefix`), matching training/eval. Unset the var to revert to nomic.
+
+Because the vector space changed, the corpus was re-embedded once:
+
+```bash
+ST_MODEL_PATH=finetune/models/bge-base-dogbreeds uv run python -m src.ingest --force
+```
+
+No schema change was needed (bge-base is 768-dim, matching `vector(768)`). **Important:**
+`ST_MODEL_PATH` must stay set for the app after re-ingesting — otherwise queries embed
+with nomic against bge vectors and retrieval breaks.

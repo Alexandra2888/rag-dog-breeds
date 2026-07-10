@@ -15,6 +15,17 @@ class EmbeddingGenerator:
         self.provider = settings.inference_provider.lower()
         self.openai_client = None
         self.client = None
+        self.st_model = None
+
+        # A local fine-tuned sentence-transformers model, if configured, takes
+        # precedence over the ollama/openai providers (embeddings only).
+        if settings.st_model_path:
+            from sentence_transformers import SentenceTransformer
+            self.provider = "local-st"
+            self.model = model or settings.st_model_path
+            self.st_model = SentenceTransformer(self.model)
+            logger.info(f"Embeddings via local sentence-transformers model: {self.model}")
+            return
 
         if self.provider == "openai":
             # Any OpenAI-compatible embeddings API (e.g. Google Gemini's free
@@ -50,10 +61,16 @@ class EmbeddingGenerator:
         documents must be embedded as 'search_document: ...' and queries as
         'search_query: ...'. Without these prefixes the query and document
         vectors live in mismatched spaces and retrieval quality drops sharply.
-        Only applied for nomic models; a no-op for everything else.
+
+        bge models use a different asymmetry: a query *instruction* on the query
+        side only (passages plain). Both must match how the model was trained /
+        evaluated. A no-op for everything else.
         """
-        if "nomic" in self.model.lower():
+        name = self.model.lower()
+        if "nomic" in name:
             return f"{input_type}: {text}"
+        if "bge" in name and input_type == "search_query":
+            return f"Represent this sentence for searching relevant passages: {text}"
         return text
 
     def generate_embedding(
@@ -72,6 +89,8 @@ class EmbeddingGenerator:
         """
         prompt = self._apply_task_prefix(text, input_type)
         try:
+            if self.provider == "local-st":
+                return self.st_model.encode(prompt, normalize_embeddings=False).tolist()
             if self.provider == "openai":
                 kwargs = {"model": self.model, "input": prompt}
                 # Request a specific output dimension when set (e.g. 768 for
@@ -100,6 +119,13 @@ class EmbeddingGenerator:
         Returns:
             List of embedding vectors
         """
+        # Local sentence-transformers: encode the whole list at once (fast, batched).
+        if self.provider == "local-st":
+            prompts = [self._apply_task_prefix(t, "search_document") for t in texts]
+            embs = self.st_model.encode(prompts, batch_size=64, show_progress_bar=True,
+                                        normalize_embeddings=False)
+            return [e.tolist() for e in embs]
+
         # OpenAI-compatible APIs accept a list input, so embed many per request
         # (far fewer calls → stays well under rate limits).
         if self.provider == "openai":

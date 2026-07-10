@@ -53,6 +53,13 @@ class Settings(BaseSettings):
     inference_embedding_base_url: str = Field(default="", alias="INFERENCE_EMBEDDING_BASE_URL")
     inference_embedding_api_key: str = Field(default="", alias="INFERENCE_EMBEDDING_API_KEY")
 
+    # Local fine-tuned sentence-transformers embedder. When set (path or HF id),
+    # EmbeddingGenerator uses THIS model for all embeddings, overriding the
+    # ollama/openai provider — the chat/LLM path is unaffected. Empty = disabled.
+    # NOTE: switching this changes the vector space, so the corpus must be
+    # re-ingested (`python -m src.ingest --force`) to match. Must stay 768-dim.
+    st_model_path: str = Field(default="", alias="ST_MODEL_PATH")
+
     # Chunking
     chunk_size: int = Field(default=1000, alias="CHUNK_SIZE")
     chunk_overlap: int = Field(default=200, alias="CHUNK_OVERLAP")
