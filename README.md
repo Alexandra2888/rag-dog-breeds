@@ -59,6 +59,11 @@ live demo runs on Vercel + Fly.io + Neon Postgres with OpenAI chat.
   threaded through text and voice (JSON logs in prod), plus **production quality
   monitoring**: per-query signals + a sampled LLM judge + thumbs feedback on real
   traffic, with drift tracked in MLflow. See [observability.md](docs/observability.md).
+- **Runtime guardrails** — live input/output enforcement: prompt-injection
+  screening, answer **grounding + enforced refusal** (embedding-based), PII
+  redaction, and toxicity/off-topic gating. Rolled out shadow-first; every decision
+  persisted. Turns "say you don't know" from hoped into guaranteed. See
+  [guardrails.md](docs/guardrails.md).
 
 ## Repository layout
 

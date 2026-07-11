@@ -12,6 +12,7 @@ Comprehensive docs for the Dog Breed RAG Assistant. New here? Read in this order
 | [evaluation.md](evaluation.md) | Offline eval: Ragas metrics + golden dataset, plus the adversarial / edge-case suite with a deterministic refusal metric |
 | [fine-tuning.md](fine-tuning.md) | Synthetic query–passage pairs → retriever fine-tuning (bge-base + MNRL) → recall@k/MRR, tracked in MLflow |
 | [observability.md](observability.md) | Structured logging (structlog) + **online eval**: per-query quality signals on real traffic, feedback, and drift tracked in MLflow |
+| [guardrails.md](guardrails.md) | Runtime input/output guardrails: prompt-injection, grounding+refusal, PII redaction, toxicity/off-topic — shadow-first, enforced |
 | [configuration.md](configuration.md) | All environment variables and their defaults |
 | [development.md](development.md) | Local setup, running each service, the voice console, troubleshooting |
 | [deployment.md](deployment.md) | Docker Compose stack and production notes |
@@ -35,6 +36,9 @@ Comprehensive docs for the Dog Breed RAG Assistant. New here? Read in this order
    by a deterministic refusal metric), and **online eval** on real traffic whose
    drift is charted in MLflow. See [evaluation.md](evaluation.md) +
    [observability.md](observability.md).
+5. **Runtime guardrails** then *enforce* what eval measures — input injection
+   screening, output grounding+refusal, PII redaction, toxicity/off-topic — rolled
+   out shadow-first. See [guardrails.md](guardrails.md).
 5. It's **deployed live**: Vercel → Fly.io FastAPI (self-hosting the fine-tuned
    bge) → Neon Postgres/pgvector → OpenAI chat, with a LiveKit voice agent.
 

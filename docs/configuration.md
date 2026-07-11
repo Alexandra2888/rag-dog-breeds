@@ -30,6 +30,16 @@ Loaded by `src/config.py` (pydantic-settings). Defaults shown; the committed
 | `ONLINE_EVAL_ENABLED` | `true` | Record per-query quality signals on real `/query` traffic (background task, no added latency). See [observability.md](observability.md) |
 | `ONLINE_JUDGE_ENABLED` | `false` | Also run a reference-free LLM judge on a **sample** of traffic. Off in dev (avoids loading Ollama); turn on in prod |
 | `ONLINE_JUDGE_SAMPLE_RATE` | `0.1` | Fraction of fresh (non-cached) answers the judge scores. The main cost knob — the judge doubles LLM calls on sampled rows |
+| `GUARDRAILS_ENABLED` | `true` | Master switch for the runtime guardrail layer ([guardrails.md](guardrails.md)) |
+| `GUARDRAILS_ENFORCE` | `false` | Shadow (log decisions only) vs enforce (block/refuse/redact responses) |
+| `GUARDRAILS_INJECTION_ENABLED` / `_SCOPE_ENABLED` / `_GROUNDING_ENABLED` / `_PII_ENABLED` | `true` | Per-guard toggles |
+| `GUARDRAILS_PII_BLOCK_INPUT` | `false` | Block (vs log) PII in the query |
+| `GUARDRAILS_TOXICITY_ENABLED` | `false` | Moderation (OpenAI endpoint in prod); turn on in prod |
+| `GUARDRAILS_TOXICITY_DEV_WORDLIST` | `true` | Dev fallback when no moderation API |
+| `GUARDRAILS_SCOPE_SIM_THRESHOLD` | `0.45` | query↔chunk cosine floor for off-topic refusal |
+| `GUARDRAILS_GROUNDING_SIM_MAX` / `_SIM_MEAN` | `0.45` / `0.30` | answer↔chunk cosine floors for grounding |
+| `GUARDRAILS_GROUNDING_MIN_CHARS` | `60` | Skip grounding on short answers (avoid false positives) |
+| `GUARDRAILS_PII_BACKEND` | `regex` | `regex` (always-on) or `presidio` (opt-in, heavy) |
 | `LIVEKIT_URL` | `ws://localhost:7880` | LiveKit Cloud uses `wss://...livekit.cloud` |
 | `LIVEKIT_API_KEY` | `""` | Required for voice token minting |
 | `LIVEKIT_API_SECRET` | `""` | Required for voice token minting |

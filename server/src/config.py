@@ -78,6 +78,37 @@ class Settings(BaseSettings):
     # rate is the main cost knob — the judge doubles LLM calls on sampled rows.
     online_judge_enabled: bool = Field(default=False, alias="ONLINE_JUDGE_ENABLED")
     online_judge_sample_rate: float = Field(default=0.1, alias="ONLINE_JUDGE_SAMPLE_RATE")
+
+    # Runtime guardrails (input/output safety layer). Rolled out shadow-first:
+    # with `guardrails_enforce=False` every guard runs and its decision is
+    # persisted, but responses are NOT altered — so false positives can be
+    # measured on real traffic before flipping enforcement on. See
+    # docs/guardrails.md. Guards always fail OPEN (a guard error/timeout →
+    # allow) so they never add availability risk.
+    guardrails_enabled: bool = Field(default=True, alias="GUARDRAILS_ENABLED")
+    guardrails_enforce: bool = Field(default=False, alias="GUARDRAILS_ENFORCE")
+    # Per-guard toggles.
+    guardrails_injection_enabled: bool = Field(default=True, alias="GUARDRAILS_INJECTION_ENABLED")
+    guardrails_scope_enabled: bool = Field(default=True, alias="GUARDRAILS_SCOPE_ENABLED")
+    guardrails_grounding_enabled: bool = Field(default=True, alias="GUARDRAILS_GROUNDING_ENABLED")
+    guardrails_pii_enabled: bool = Field(default=True, alias="GUARDRAILS_PII_ENABLED")
+    # PII in the *input* is logged by default, not blocked (a user mentioning an
+    # email isn't hostile); flip to block if the domain requires it.
+    guardrails_pii_block_input: bool = Field(default=False, alias="GUARDRAILS_PII_BLOCK_INPUT")
+    # Toxicity uses the OpenAI moderation endpoint (provider="openai") — off until
+    # prod. In dev/ollama there's no moderation API, so an optional deterministic
+    # wordlist is the only signal.
+    guardrails_toxicity_enabled: bool = Field(default=False, alias="GUARDRAILS_TOXICITY_ENABLED")
+    guardrails_toxicity_dev_wordlist: bool = Field(default=True, alias="GUARDRAILS_TOXICITY_DEV_WORDLIST")
+    # Thresholds — placeholders to calibrate during the shadow phase from the
+    # guardrail_events table. Scope = query↔chunk bge cosine; grounding = answer↔chunk.
+    guardrails_scope_sim_threshold: float = Field(default=0.45, alias="GUARDRAILS_SCOPE_SIM_THRESHOLD")
+    guardrails_grounding_sim_max_threshold: float = Field(default=0.45, alias="GUARDRAILS_GROUNDING_SIM_MAX")
+    guardrails_grounding_sim_mean_threshold: float = Field(default=0.30, alias="GUARDRAILS_GROUNDING_SIM_MEAN")
+    guardrails_grounding_min_answer_chars: int = Field(default=60, alias="GUARDRAILS_GROUNDING_MIN_CHARS")
+    # PII backend: "regex" (always-on, zero-dep) or "presidio" (richer, lazy
+    # import, ~500MB+ — not baked into the prod image; needs a bigger VM).
+    guardrails_pii_backend: str = Field(default="regex", alias="GUARDRAILS_PII_BACKEND")
     
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")

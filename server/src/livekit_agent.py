@@ -21,6 +21,8 @@ from src.rag_service import RAGService
 from src.embeddings import EmbeddingGenerator
 from src.database import Database
 from src.config import settings
+from src.guardrails.base import canned_refusal
+from src.guardrails.patterns import match_injection
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +100,17 @@ class DogBreedAgent(Agent):
             )
 
         # Fallback: inject retrieved context and let the default LLM reply.
+        # This path bypasses RAGService.query, so its guardrails don't apply.
+        # Enforce at least the deterministic input-injection screen here; the
+        # default LLM's *output* remains grounding/PII-unguarded (known gap —
+        # would need a LiveKit LLM-node output hook).
+        if settings.guardrails_enabled and settings.guardrails_enforce:
+            hit = match_injection(query)
+            if hit:
+                logger.info(f"Guardrail blocked voice input (fallback): {hit!r}")
+                await self.session.say(canned_refusal("voice"))
+                raise StopResponse()
+
         try:
             rag = get_rag_service()
             result = await asyncio.to_thread(rag.search, query, 8)

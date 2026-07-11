@@ -136,6 +136,23 @@ uv run python -m scripts.aggregate_online_eval --window-hours 24
 Config: `ONLINE_EVAL_ENABLED`, `ONLINE_JUDGE_ENABLED`, `ONLINE_JUDGE_SAMPLE_RATE`.
 Details: [`../docs/observability.md`](../docs/observability.md).
 
+## Guardrails (runtime safety)
+
+Two pipelines run inside `RAGService.query` (text + voice): an INPUT screen
+(prompt-injection, PII, toxicity) and an OUTPUT validator (off-topic scope gate,
+answer grounding + enforced refusal, prompt-leak, PII redaction). This *enforces*
+"answer only from the book, else refuse". Rolled out **shadow-first**
+(`GUARDRAILS_ENFORCE=false` logs decisions without altering responses); every
+decision lands in the `guardrail_events` table.
+
+```bash
+uv run pytest tests/                                        # guard unit tests
+GUARDRAILS_ENFORCE=true uv run uvicorn src.main:app --port 8000   # enforce mode
+```
+
+Config: `GUARDRAILS_ENABLED`, `GUARDRAILS_ENFORCE`, per-guard toggles + thresholds.
+Details: [`../docs/guardrails.md`](../docs/guardrails.md).
+
 ## Fine-tuning
 
 An offline pipeline (`finetune/`) fine-tunes `bge-base-en-v1.5` on synthetic
@@ -165,16 +182,18 @@ server/
 ├── finetune/               # embedding fine-tuning (generate_pairs, train, eval, MLflow)
 │   └── models/             # trained model (bge-base-dogbreeds, gitignored)
 ├── scripts/                # aggregate_online_eval.py (online-eval window → MLflow)
+├── tests/                  # pytest unit tests (guardrails)
 └── src/
     ├── main.py             # FastAPI app + routes (/query, /feedback) + startup auto-ingest
-    ├── config.py           # env settings (providers, ST_MODEL_PATH, online-eval)
+    ├── config.py           # env settings (providers, ST_MODEL_PATH, online-eval, guardrails)
     ├── logging_config.py   # structlog setup + per-request request_id
     ├── pdf_processor.py    # breed-aware chunking
     ├── embeddings.py       # pluggable embeddings (fine-tuned bge via ST_MODEL_PATH / Ollama / Jina)
-    ├── database.py         # pgvector ops, hybrid search (RRF), answer cache, online_eval/feedback
-    ├── rag_service.py      # retrieval + generation + cache orchestration
-    ├── refusal.py          # deterministic abstention detector (shared: evals + online eval)
+    ├── database.py         # pgvector ops, hybrid search (RRF), caches, online_eval/feedback/guardrail_events
+    ├── rag_service.py      # retrieval + generation + cache + guardrail orchestration
+    ├── refusal.py          # deterministic abstention detector (shared: evals, online eval, guardrails)
     ├── online_eval.py      # per-query production quality signals (background task)
+    ├── guardrails/         # runtime input/output guardrail layer (protocol, pipeline, guards)
     ├── models.py           # Pydantic request/response models
     ├── ingest.py           # auto-ingest CLI + startup hook
     ├── livekit_agent.py    # voice agent (cached RAG, STT/TTS, fallback)

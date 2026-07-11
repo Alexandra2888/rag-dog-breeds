@@ -40,6 +40,7 @@ from src.embeddings import EmbeddingGenerator
 from src.database import Database
 from src.rag_service import RAGService, normalize_query
 from src.online_eval import record_online_eval
+from src.guardrails.persistence import record_guardrail_events
 from src.ingest import ingest_data_directory
 
 # Configure structured logging for all entrypoints (structlog + stdlib bridge).
@@ -364,10 +365,23 @@ async def query_rag(request: QueryRequest, background_tasks: BackgroundTasks):
             for chunk in result["chunks"]
         ]
 
+        request_id = structlog.contextvars.get_contextvars().get("request_id")
+
+        # Guardrail decisions: persist AFTER the response is sent (best-effort).
+        guardrail_results = result.pop("_guardrail_results", None)
+        if guardrail_results:
+            background_tasks.add_task(
+                record_guardrail_events,
+                database,
+                guardrail_results,
+                query=request.query,
+                mode="text",
+                request_id=request_id,
+            )
+
         # Online eval: record quality signals AFTER the response is sent, so the
         # DB write (and the optional sampled LLM judge) never touch request latency.
         if settings.online_eval_enabled:
-            request_id = structlog.contextvars.get_contextvars().get("request_id")
             background_tasks.add_task(
                 record_online_eval,
                 database,
@@ -382,6 +396,8 @@ async def query_rag(request: QueryRequest, background_tasks: BackgroundTasks):
             chunks=chunk_results,
             answer=result.get("answer"),
             cached=result.get("cached", False),
+            guardrail_triggered=result.get("guardrail_triggered", False),
+            guardrail_action=result.get("guardrail_action"),
         )
 
     except Exception as e:

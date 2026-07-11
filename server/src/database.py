@@ -226,6 +226,40 @@ class Database:
                     ON feedback(created_at);
                 """)
 
+                # Guardrail decisions: one row per guard that ran on a request,
+                # written best-effort by a background task. `enforce` records
+                # whether the decision actually altered the response (enforce) or
+                # was shadow-only, so false-positive rate is measurable before
+                # flipping enforcement on.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS guardrail_events (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        request_id TEXT,
+                        query_norm TEXT,
+                        query_text TEXT NOT NULL,
+                        mode VARCHAR(16) NOT NULL DEFAULT 'text',
+                        stage VARCHAR(8) NOT NULL,
+                        guard_name VARCHAR(48) NOT NULL,
+                        action VARCHAR(8) NOT NULL,
+                        triggered BOOLEAN NOT NULL,
+                        final_action VARCHAR(8),
+                        enforce BOOLEAN NOT NULL,
+                        reason TEXT,
+                        score DOUBLE PRECISION,
+                        latency_ms DOUBLE PRECISION,
+                        provider VARCHAR(16),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS guardrail_events_created_idx
+                    ON guardrail_events(created_at);
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS guardrail_events_req_idx
+                    ON guardrail_events(request_id);
+                """)
+
                 conn.commit()
                 logger.info("Database tables created/verified")
         except Exception as e:
@@ -970,6 +1004,57 @@ class Database:
         except Exception as e:
             logger.warning(f"Feedback store failed (ignored): {e}")
             conn.rollback()
+        finally:
+            self._return_connection(conn)
+
+    def put_guardrail_events(self, rows: List[Dict[str, Any]]) -> None:
+        """Store guardrail decisions (one row per guard). Best-effort, batched."""
+        if not rows:
+            return
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.executemany(
+                    """
+                    INSERT INTO guardrail_events
+                        (request_id, query_norm, query_text, mode, stage,
+                         guard_name, action, triggered, final_action, enforce,
+                         reason, score, latency_ms, provider)
+                    VALUES (%(request_id)s, %(query_norm)s, %(query_text)s,
+                            %(mode)s, %(stage)s, %(guard_name)s, %(action)s,
+                            %(triggered)s, %(final_action)s, %(enforce)s,
+                            %(reason)s, %(score)s, %(latency_ms)s, %(provider)s);
+                    """,
+                    rows,
+                )
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Guardrail-event store failed (ignored): {e}")
+            conn.rollback()
+        finally:
+            self._return_connection(conn)
+
+    def fetch_guardrail_events_window(self, hours: int) -> List[Dict[str, Any]]:
+        """Return guardrail_events rows created within the last ``hours`` hours."""
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT stage, guard_name, action, triggered, final_action,
+                           enforce, reason, score, latency_ms, provider, created_at
+                      FROM guardrail_events
+                     WHERE created_at >= CURRENT_TIMESTAMP - make_interval(hours => %s)
+                     ORDER BY created_at;
+                    """,
+                    (hours,),
+                )
+                cols = [d[0] for d in cur.description]
+                return [dict(zip(cols, r)) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Guardrail-event window fetch failed: {e}")
+            conn.rollback()
+            return []
         finally:
             self._return_connection(conn)
 

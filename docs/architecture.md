@@ -88,6 +88,13 @@ background task — no added request latency — plus a `POST /feedback` thumbs
 signal. A cron-able CLI rolls windows up into an `online-eval` MLflow experiment so
 quality **drift** is a trend line. See [observability.md](observability.md).
 
+**Runtime guardrails** run two pipelines inside `RAGService.query` (so both text
+and voice are covered): an INPUT screen (prompt-injection, PII, toxicity) and an
+OUTPUT validator (off-topic scope gate, answer grounding, prompt-leak, PII
+redaction). This *enforces* "answer only from the book, else refuse" — what the
+eval suites only measure. Rolled out shadow-first; every decision is persisted to
+`guardrail_events`. See [guardrails.md](guardrails.md).
+
 ## Process / deployment topology
 
 `docker-compose.yml` defines four services: `postgres`, `rag-api`,

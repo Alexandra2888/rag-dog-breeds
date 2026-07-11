@@ -62,6 +62,11 @@ class QueryResponse(BaseModel):
     chunks: List[ChunkResult]
     answer: Optional[str] = None
     cached: bool = False
+    # Guardrail outcome for this response. `guardrail_action` is the strongest
+    # action taken (allow/redact/refuse/block); in shadow mode it reports what
+    # WOULD have happened without altering `answer`.
+    guardrail_triggered: bool = False
+    guardrail_action: Optional[str] = None
 
 
 class SearchResponse(BaseModel):

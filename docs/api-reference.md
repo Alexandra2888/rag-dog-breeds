@@ -36,10 +36,16 @@ Response:
     { "id": "uuid", "content": "...", "similarity_score": 0.83,
       "metadata": { "breed": "WEIMARANER", "source": "...", "page_number": 246 } }
   ],
-  "cached": false
+  "cached": false,
+  "guardrail_triggered": false,
+  "guardrail_action": null
 }
 ```
 `cached` is `true` when the answer came from the cache (no LLM call).
+`guardrail_triggered` / `guardrail_action` (`allow|redact|refuse|block`) report the
+[runtime guardrail](guardrails.md) outcome; in shadow mode they report what *would*
+have happened without altering `answer`. When enforced, a blocked/refused query
+returns a canned refusal and `guardrail_action` is `block`/`refuse`.
 
 ### `POST /search`
 Vector/hybrid similarity search **without** generating an answer.
