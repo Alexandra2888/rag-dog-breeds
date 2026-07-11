@@ -177,6 +177,55 @@ class Database:
                     ON query_cache(query_norm, mode, top_k);
                 """)
 
+                # Online eval: one row per live /query, written best-effort by a
+                # background task. Deterministic signals on every row; the LLM-judge
+                # columns are populated only on the sampled fraction. Rolled up into
+                # MLflow windows by scripts/aggregate_online_eval.py to track drift.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS online_eval (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        request_id TEXT,
+                        query_norm TEXT NOT NULL,
+                        query_text TEXT NOT NULL,
+                        mode VARCHAR(16) NOT NULL DEFAULT 'text',
+                        top_k INTEGER NOT NULL,
+                        cached BOOLEAN NOT NULL DEFAULT FALSE,
+                        num_chunks INTEGER NOT NULL,
+                        sim_max DOUBLE PRECISION,
+                        sim_mean DOUBLE PRECISION,
+                        sim_min DOUBLE PRECISION,
+                        answer_len INTEGER,
+                        refused BOOLEAN NOT NULL,
+                        judge_sampled BOOLEAN NOT NULL DEFAULT FALSE,
+                        judge_faithfulness DOUBLE PRECISION,
+                        judge_relevancy DOUBLE PRECISION,
+                        provider VARCHAR(16),
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS online_eval_created_idx
+                    ON online_eval(created_at);
+                """)
+
+                # User feedback: a thumbs up/down on an answer, correlated to the
+                # request via request_id. Folded into the same drift aggregation.
+                cur.execute("""
+                    CREATE TABLE IF NOT EXISTS feedback (
+                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                        request_id TEXT,
+                        query_text TEXT NOT NULL,
+                        query_norm TEXT,
+                        rating SMALLINT NOT NULL,
+                        comment TEXT,
+                        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    );
+                """)
+                cur.execute("""
+                    CREATE INDEX IF NOT EXISTS feedback_created_idx
+                    ON feedback(created_at);
+                """)
+
                 conn.commit()
                 logger.info("Database tables created/verified")
         except Exception as e:
@@ -793,6 +842,134 @@ class Database:
             logger.warning(f"Cache clear failed (ignored): {e}")
             conn.rollback()
             return 0
+        finally:
+            self._return_connection(conn)
+
+    # ------------------------------------------------------------------ #
+    # Online eval + feedback (production quality monitoring)
+    # ------------------------------------------------------------------ #
+
+    def put_online_eval(self, row: Dict[str, Any]) -> None:
+        """Store one online-eval record. Best-effort — never breaks the request.
+
+        Runs inside a FastAPI BackgroundTask after the response is sent, so a
+        Neon cold-start or transient failure is logged and dropped, exactly like
+        the answer cache.
+        """
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO online_eval
+                        (request_id, query_norm, query_text, mode, top_k, cached,
+                         num_chunks, sim_max, sim_mean, sim_min, answer_len,
+                         refused, judge_sampled, judge_faithfulness,
+                         judge_relevancy, provider)
+                    VALUES (%(request_id)s, %(query_norm)s, %(query_text)s,
+                            %(mode)s, %(top_k)s, %(cached)s, %(num_chunks)s,
+                            %(sim_max)s, %(sim_mean)s, %(sim_min)s, %(answer_len)s,
+                            %(refused)s, %(judge_sampled)s, %(judge_faithfulness)s,
+                            %(judge_relevancy)s, %(provider)s);
+                    """,
+                    {
+                        "request_id": row.get("request_id"),
+                        "query_norm": row["query_norm"],
+                        "query_text": row["query_text"],
+                        "mode": row.get("mode", "text"),
+                        "top_k": row["top_k"],
+                        "cached": row.get("cached", False),
+                        "num_chunks": row.get("num_chunks", 0),
+                        "sim_max": row.get("sim_max"),
+                        "sim_mean": row.get("sim_mean"),
+                        "sim_min": row.get("sim_min"),
+                        "answer_len": row.get("answer_len"),
+                        "refused": row["refused"],
+                        "judge_sampled": row.get("judge_sampled", False),
+                        "judge_faithfulness": row.get("judge_faithfulness"),
+                        "judge_relevancy": row.get("judge_relevancy"),
+                        "provider": row.get("provider"),
+                    },
+                )
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Online-eval store failed (ignored): {e}")
+            conn.rollback()
+        finally:
+            self._return_connection(conn)
+
+    def fetch_online_eval_window(self, hours: int) -> List[Dict[str, Any]]:
+        """Return online_eval rows created within the last ``hours`` hours."""
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT query_text, cached, num_chunks, sim_max, sim_mean,
+                           sim_min, answer_len, refused, judge_sampled,
+                           judge_faithfulness, judge_relevancy, provider, created_at
+                      FROM online_eval
+                     WHERE created_at >= CURRENT_TIMESTAMP - make_interval(hours => %s)
+                     ORDER BY created_at;
+                    """,
+                    (hours,),
+                )
+                cols = [d[0] for d in cur.description]
+                return [dict(zip(cols, r)) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Online-eval window fetch failed: {e}")
+            conn.rollback()
+            return []
+        finally:
+            self._return_connection(conn)
+
+    def fetch_feedback_window(self, hours: int) -> List[Dict[str, Any]]:
+        """Return feedback rows created within the last ``hours`` hours."""
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT rating, created_at
+                      FROM feedback
+                     WHERE created_at >= CURRENT_TIMESTAMP - make_interval(hours => %s)
+                     ORDER BY created_at;
+                    """,
+                    (hours,),
+                )
+                cols = [d[0] for d in cur.description]
+                return [dict(zip(cols, r)) for r in cur.fetchall()]
+        except Exception as e:
+            logger.warning(f"Feedback window fetch failed: {e}")
+            conn.rollback()
+            return []
+        finally:
+            self._return_connection(conn)
+
+    def put_feedback(
+        self,
+        request_id: Optional[str],
+        query_text: str,
+        query_norm: Optional[str],
+        rating: int,
+        comment: Optional[str] = None,
+    ) -> None:
+        """Store a thumbs up/down on an answer. Best-effort."""
+        conn = self._get_connection()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO feedback
+                        (request_id, query_text, query_norm, rating, comment)
+                    VALUES (%s, %s, %s, %s, %s);
+                    """,
+                    (request_id, query_text, query_norm, rating, comment),
+                )
+                conn.commit()
+        except Exception as e:
+            logger.warning(f"Feedback store failed (ignored): {e}")
+            conn.rollback()
         finally:
             self._return_connection(conn)
 

@@ -79,7 +79,14 @@ Structured logging is wired through **structlog**: all stdlib logging is routed
 through a single JSON formatter, a `request_id` contextvar is bound by a FastAPI
 middleware and auto-attached to every log line across modules, and each request
 emits an access line. This gives correlated, machine-parseable logs in
-production without per-module wiring. See [observability.md](observability.md).
+production without per-module wiring.
+
+On top of that, **online eval** records per-query quality signals on real traffic
+(retrieval-score stats + deterministic refusal detection on every query, a sampled
+reference-free LLM judge on a fraction) to the `online_eval` table via a
+background task — no added request latency — plus a `POST /feedback` thumbs
+signal. A cron-able CLI rolls windows up into an `online-eval` MLflow experiment so
+quality **drift** is a trend line. See [observability.md](observability.md).
 
 ## Process / deployment topology
 

@@ -68,6 +68,16 @@ class Settings(BaseSettings):
     # False renders a colorized console format for local dev.
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     log_json: bool = Field(default=False, alias="LOG_JSON")
+
+    # Online eval / production quality monitoring. Every /query records cheap
+    # deterministic signals (retrieval-score stats, refusal detection) to the
+    # online_eval table via a background task — no latency on the request path.
+    online_eval_enabled: bool = Field(default=True, alias="ONLINE_EVAL_ENABLED")
+    # A reference-free LLM judge (faithfulness + relevancy) scores a *sample* of
+    # traffic. Off in dev (avoids loading Ollama); turn on in prod. The sample
+    # rate is the main cost knob — the judge doubles LLM calls on sampled rows.
+    online_judge_enabled: bool = Field(default=False, alias="ONLINE_JUDGE_ENABLED")
+    online_judge_sample_rate: float = Field(default=0.1, alias="ONLINE_JUDGE_SAMPLE_RATE")
     
     # API
     api_host: str = Field(default="0.0.0.0", alias="API_HOST")

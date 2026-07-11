@@ -51,9 +51,14 @@ live demo runs on Vercel + Fly.io + Neon Postgres with OpenAI chat.
   embedding, search, or LLM call); ~9000× faster on a hit. Shared across the
   text and voice processes.
 - **Evaluation suite** — [Ragas](https://docs.ragas.io) metrics + a deterministic
-  retrieval check, scored by a local Ollama judge (no API cost).
-- **Structured logging** — structlog with a per-request `request_id` threaded
-  through text and voice; JSON logs in production. See [observability.md](docs/observability.md).
+  retrieval check, scored by a local Ollama judge (no API cost), plus an
+  **adversarial / edge-case** suite (jailbreaks, prompt-injection, out-of-scope)
+  scored per category by a deterministic refusal metric. See
+  [evaluation.md](docs/evaluation.md).
+- **Structured logging + online eval** — structlog with a per-request `request_id`
+  threaded through text and voice (JSON logs in prod), plus **production quality
+  monitoring**: per-query signals + a sampled LLM judge + thumbs feedback on real
+  traffic, with drift tracked in MLflow. See [observability.md](docs/observability.md).
 
 ## Repository layout
 

@@ -109,8 +109,32 @@ uv run python -m evals.run_eval --limit 3   # quick smoke test
 uv run python -m evals.run_eval             # full suite (slow on a local judge)
 ```
 
+Plus an **adversarial / edge-case** suite — jailbreaks, prompt-injection,
+out-of-scope, degenerate inputs — scored per category with a deterministic
+refusal metric (`src/refusal.py`):
+
+```bash
+uv run python -m evals.run_adversarial              # full (clears cache first)
+uv run python -m evals.run_adversarial --category jailbreak
+```
+
 Details: [`evals/README.md`](evals/README.md) and
 [`../docs/evaluation.md`](../docs/evaluation.md).
+
+## Online eval (production quality)
+
+Every `/query` records quality signals on real traffic (retrieval-score stats +
+deterministic refusal on all queries, a sampled reference-free LLM judge on a
+fraction) via a background task — no added latency. A `POST /feedback` endpoint
+captures thumbs up/down. A CLI rolls windows up into an `online-eval` MLflow
+experiment so drift is a trend line:
+
+```bash
+uv run python -m scripts.aggregate_online_eval --window-hours 24
+```
+
+Config: `ONLINE_EVAL_ENABLED`, `ONLINE_JUDGE_ENABLED`, `ONLINE_JUDGE_SAMPLE_RATE`.
+Details: [`../docs/observability.md`](../docs/observability.md).
 
 ## Fine-tuning
 
@@ -136,17 +160,21 @@ server/
 ├── Dockerfile
 ├── pyproject.toml          # uv deps (runtime + dev: ragas, langchain-ollama)
 ├── data/                   # PDF knowledge base
-├── evals/                  # Ragas eval suite (golden.jsonl, run_eval.py)
+├── evals/                  # eval suites: golden.jsonl + run_eval.py (normal),
+│                           #   adversarial.jsonl + run_adversarial.py (edge cases)
 ├── finetune/               # embedding fine-tuning (generate_pairs, train, eval, MLflow)
 │   └── models/             # trained model (bge-base-dogbreeds, gitignored)
+├── scripts/                # aggregate_online_eval.py (online-eval window → MLflow)
 └── src/
-    ├── main.py             # FastAPI app + routes + startup auto-ingest
-    ├── config.py           # env settings (providers, ST_MODEL_PATH)
+    ├── main.py             # FastAPI app + routes (/query, /feedback) + startup auto-ingest
+    ├── config.py           # env settings (providers, ST_MODEL_PATH, online-eval)
     ├── logging_config.py   # structlog setup + per-request request_id
     ├── pdf_processor.py    # breed-aware chunking
     ├── embeddings.py       # pluggable embeddings (fine-tuned bge via ST_MODEL_PATH / Ollama / Jina)
-    ├── database.py         # pgvector ops, hybrid search (RRF), answer cache
+    ├── database.py         # pgvector ops, hybrid search (RRF), answer cache, online_eval/feedback
     ├── rag_service.py      # retrieval + generation + cache orchestration
+    ├── refusal.py          # deterministic abstention detector (shared: evals + online eval)
+    ├── online_eval.py      # per-query production quality signals (background task)
     ├── models.py           # Pydantic request/response models
     ├── ingest.py           # auto-ingest CLI + startup hook
     ├── livekit_agent.py    # voice agent (cached RAG, STT/TTS, fallback)

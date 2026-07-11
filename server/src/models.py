@@ -71,6 +71,19 @@ class SearchResponse(BaseModel):
     total_results: int
 
 
+class FeedbackRequest(BaseModel):
+    """User thumbs up/down on an answer."""
+    request_id: Optional[str] = Field(default=None, description="X-Request-ID of the /query call being rated")
+    query: str = Field(..., min_length=1, description="The question that was answered")
+    rating: int = Field(..., ge=-1, le=1, description="+1 (up) or -1 (down)")
+    comment: Optional[str] = Field(default=None, description="Optional free-text feedback")
+
+
+class FeedbackResponse(BaseModel):
+    """Acknowledgement for submitted feedback."""
+    message: str
+
+
 class VoiceSessionRequest(BaseModel):
     """Request model for creating a LiveKit voice session."""
     user_id: Optional[str] = Field(default=None, description="Stable identity for the user")

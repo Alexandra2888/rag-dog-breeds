@@ -7,9 +7,10 @@ import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, status
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, UploadFile, File, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+import structlog
 
 from src.config import settings
 from src.logging_config import (
@@ -29,13 +30,16 @@ from src.models import (
     DocumentInfo,
     DocumentListResponse,
     DeleteResponse,
+    FeedbackRequest,
+    FeedbackResponse,
     VoiceSessionRequest,
     VoiceSessionResponse,
 )
 from src.pdf_processor import PDFProcessor
 from src.embeddings import EmbeddingGenerator
 from src.database import Database
-from src.rag_service import RAGService
+from src.rag_service import RAGService, normalize_query
+from src.online_eval import record_online_eval
 from src.ingest import ingest_data_directory
 
 # Configure structured logging for all entrypoints (structlog + stdlib bridge).
@@ -315,26 +319,40 @@ async def clear_cache():
         )
 
 
+@app.post("/feedback", response_model=FeedbackResponse)
+async def submit_feedback(request: FeedbackRequest):
+    """Record a thumbs up/down on an answer as a production quality signal."""
+    request_id = request.request_id or structlog.contextvars.get_contextvars().get("request_id")
+    database.put_feedback(
+        request_id,
+        request.query,
+        normalize_query(request.query),
+        request.rating,
+        request.comment,
+    )
+    return FeedbackResponse(message="Thanks for the feedback")
+
+
 @app.post("/query", response_model=QueryResponse)
-async def query_rag(request: QueryRequest):
+async def query_rag(request: QueryRequest, background_tasks: BackgroundTasks):
     """
     Query the RAG system with a natural language question.
-    
+
     Args:
         request: QueryRequest with query and parameters
-        
+
     Returns:
         QueryResponse with relevant chunks and generated answer
     """
     try:
         logger.info(f"Processing query: {request.query}")
-        
+
         result = rag_service.query(
             query=request.query,
             top_k=request.top_k,
             generate_answer=True
         )
-        
+
         # Convert to response model
         chunk_results = [
             ChunkResult(
@@ -345,14 +363,27 @@ async def query_rag(request: QueryRequest):
             )
             for chunk in result["chunks"]
         ]
-        
+
+        # Online eval: record quality signals AFTER the response is sent, so the
+        # DB write (and the optional sampled LLM judge) never touch request latency.
+        if settings.online_eval_enabled:
+            request_id = structlog.contextvars.get_contextvars().get("request_id")
+            background_tasks.add_task(
+                record_online_eval,
+                database,
+                result,
+                mode="text",
+                top_k=request.top_k,
+                request_id=request_id,
+            )
+
         return QueryResponse(
             query=result["query"],
             chunks=chunk_results,
             answer=result.get("answer"),
             cached=result.get("cached", False),
         )
-    
+
     except Exception as e:
         logger.error(f"Error processing query: {e}", exc_info=True)
         raise HTTPException(

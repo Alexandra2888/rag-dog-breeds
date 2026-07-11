@@ -85,6 +85,25 @@ Drop all cached answers. Returns `{ "message", "removed": <count> }`. The cache
 is also cleared automatically on ingest and document delete. See
 [caching.md](caching.md).
 
+## Feedback
+
+### `POST /feedback`
+Record a thumbs up/down on an answer as a production quality signal. Correlated
+to the `/query` call via `request_id` (echoed in the `X-Request-ID` response
+header). Stored best-effort and folded into the online-eval drift rollup — see
+[observability.md](observability.md).
+
+Request:
+```json
+{ "request_id": "query-trace-99", "query": "Where does the Weimaraner come from?", "rating": 1, "comment": "spot on" }
+```
+- `query` (string, required, non-empty)
+- `rating` (int, required) — **+1** (up) or **−1** (down)
+- `request_id` (string, optional) — the `X-Request-ID` of the rated `/query`
+- `comment` (string, optional)
+
+Response: `{ "message": "Thanks for the feedback" }`.
+
 ## Voice sessions
 
 ### `POST /api/voice/session`
